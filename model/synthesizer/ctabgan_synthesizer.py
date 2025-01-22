@@ -345,8 +345,7 @@ class CTABGANSynthesizer:
                  random_dim=100,
                  num_channels=64,
                  l2scale=1e-5,
-                 batch_size=500,
-                 epochs=150):
+                 batch_size=500):
                  
 
         self.random_dim = random_dim
@@ -356,10 +355,11 @@ class CTABGANSynthesizer:
         self.gside = None
         self.l2scale = l2scale
         self.batch_size = batch_size
-        self.epochs = epochs
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    def fit(self, train_data=pd.DataFrame, categorical=[], mixed={}, general=[], non_categorical=[], type={}):
+    def fit(self, train_data=pd.DataFrame, 
+            epochs = 150,
+            categorical=[], mixed={}, general=[], non_categorical=[], type={}):
 
         problem_type = None
         target_index=None
@@ -420,7 +420,7 @@ class CTABGANSynthesizer:
         ci = 5
         
         steps_per_epoch = max(1, len(train_data) // self.batch_size)
-        for i in tqdm(range(self.epochs)):
+        for i in tqdm(range(epochs)):
             for id_ in range(steps_per_epoch):
 				
                 
