@@ -118,7 +118,7 @@ class DataPrep(object):
                 if i in self.log_columns:
                     lower_bound = self.lower_bounds[i]
                     if lower_bound>0:
-                        df_sample[i].apply(lambda x: np.exp(x)) 
+                        df_sample[i] = df_sample[i].apply(lambda x: np.exp(x)) 
                     elif lower_bound==0:
                         df_sample[i] = df_sample[i].apply(lambda x: np.ceil(np.exp(x)-eps) if (np.exp(x)-eps) < 0 else (np.exp(x)-eps))
                     else: 
