@@ -40,7 +40,7 @@ class DataPrep(object):
         )
         log_columns_numpy = np.log(log_columns_numpy + lower_transform_bound)
         self.lower_bounds = dict(zip(self.log_columns, lower_bounds))
-        self.lower_bounds2 = lower_bounds # numpy form
+        self.lower_transform_bound = lower_transform_bound # numpy form
         self.df[self.log_columns] = log_columns_numpy
 
         for i in relevant_missing_columns:
@@ -79,32 +79,39 @@ class DataPrep(object):
 
         super().__init__()
         
-    def inverse_prep(self, data, eps=1):
+    def inverse_prep(self, df, eps=1):
         
-        df_sample = pd.DataFrame(data,columns=self.df.columns)
-     
+        
         for i in range(len(self.label_encoder_list)):
+            column, label_encoder = self.label_encoder_list[i]["column"], self.label_encoder_list[i]["label_encoder"]
             le = self.label_encoder_list[i]["label_encoder"]
-            df_sample[self.label_encoder_list[i]["column"]] = df_sample[self.label_encoder_list[i]["column"]].astype(int)
-            df_sample[self.label_encoder_list[i]["column"]] = le.inverse_transform(df_sample[self.label_encoder_list[i]["column"]])
+            df[self.label_encoder_list[i]["column"]] = df[self.label_encoder_list[i]["column"]].astype(int)
+            df[self.label_encoder_list[i]["column"]] = le.inverse_transform(df[self.label_encoder_list[i]["column"]])
 
+        
+        log_columns_numpy = df[self.log_columns].values
+        log_columns_numpy = np.exp(log_columns_numpy) - self.lower_transform_bound
+        df[self.log_columns] = log_columns_numpy
+        """
         if self.log_columns:
-            for i in df_sample:
+            for i in df:
                 if i in self.log_columns:
                     lower_bound = self.lower_bounds[i]
                     if lower_bound>0:
-                        df_sample[i].apply(lambda x: np.exp(x)) 
+                        df[i] = df[i].apply(lambda x: np.exp(x)) 
                     elif lower_bound==0:
-                        df_sample[i] = df_sample[i].apply(lambda x: np.ceil(np.exp(x)-eps) if (np.exp(x)-eps) < 0 else (np.exp(x)-eps))
+                        df[i] = df[i].apply(lambda x: np.ceil(np.exp(x)-eps) if (np.exp(x)-eps) < 0 else (np.exp(x)-eps))
                     else: 
-                        df_sample[i] = df_sample[i].apply(lambda x: np.exp(x)-eps+lower_bound)
-
+                        df[i] = df[i].apply(lambda x: np.exp(x)-eps+lower_bound)
+        """
+        
+        
         if self.integer_columns:
             for column in self.integer_columns:
-                df_sample[column]= (np.round(df_sample[column].values))
-                df_sample[column] = df_sample[column].astype(int)
+                df[column]= (np.round(df[column].values))
+                df[column] = df[column].astype(int)
 
-        df_sample.replace(-9999999, np.nan,inplace=True)
-        df_sample.replace('empty', np.nan,inplace=True)
+        df.replace(-9999999, np.nan,inplace=True)
+        df.replace('empty', np.nan,inplace=True)
 
-        return df_sample
+        return df
