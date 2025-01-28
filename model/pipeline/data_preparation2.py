@@ -79,19 +79,20 @@ class DataPrep(object):
 
         super().__init__()
         
-    def inverse_prep(self, df, eps=1):
+    def inverse_prep(self, data, eps=1):
         
-        
+        data_pd = pd.DataFrame(data,columns=self.df.columns)
+
         for i in range(len(self.label_encoder_list)):
             column, label_encoder = self.label_encoder_list[i]["column"], self.label_encoder_list[i]["label_encoder"]
             le = self.label_encoder_list[i]["label_encoder"]
-            df[self.label_encoder_list[i]["column"]] = df[self.label_encoder_list[i]["column"]].astype(int)
-            df[self.label_encoder_list[i]["column"]] = le.inverse_transform(df[self.label_encoder_list[i]["column"]])
+            data_pd[self.label_encoder_list[i]["column"]] = data_pd[self.label_encoder_list[i]["column"]].astype(int)
+            data_pd[self.label_encoder_list[i]["column"]] = le.inverse_transform(data_pd[self.label_encoder_list[i]["column"]])
 
         
-        log_columns_numpy = df[self.log_columns].values
+        log_columns_numpy = data_pd[self.log_columns].values
         log_columns_numpy = np.exp(log_columns_numpy) - self.lower_transform_bound
-        df[self.log_columns] = log_columns_numpy
+        data_pd[self.log_columns] = log_columns_numpy
         """
         if self.log_columns:
             for i in df:
@@ -108,10 +109,10 @@ class DataPrep(object):
         
         if self.integer_columns:
             for column in self.integer_columns:
-                df[column]= (np.round(df[column].values))
-                df[column] = df[column].astype(int)
+                data_pd[column]= (np.round(data_pd[column].values))
+                data_pd[column] = data_pd[column].astype(int)
 
-        df.replace(-9999999, np.nan,inplace=True)
-        df.replace('empty', np.nan,inplace=True)
+        data_pd.replace(-9999999, np.nan,inplace=True)
+        data_pd.replace('empty', np.nan,inplace=True)
 
-        return df
+        return data_pd

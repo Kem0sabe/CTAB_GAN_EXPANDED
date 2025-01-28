@@ -126,7 +126,7 @@ class Cond(object):
         self.n_col = 0  
         self.n_opt = 0  
         st = 0
-        self.p = np.zeros((counter, maximum_interval(output_info)))  
+        self.p = np.zeros((counter , maximum_interval(output_info)))  
         self.p_sampling = []
         for item in output_info:
             if item[1] == 'tanh':
@@ -154,7 +154,6 @@ class Cond(object):
         batch = batch
 
         idx = np.random.choice(np.arange(self.n_col), batch)
-
         vec = np.zeros((batch, self.n_opt), dtype='float32')
         mask = np.zeros((batch, self.n_col), dtype='float32')
         mask[np.arange(batch), idx] = 1  
@@ -170,7 +169,8 @@ class Cond(object):
         batch = batch
       
         idx = np.random.choice(np.arange(self.n_col), batch)
-
+        idx2 = np.full(batch, 11)
+        idx = idx2
         vec = np.zeros((batch, self.n_opt), dtype='float32')
         opt1prime = random_choice_prob_index_sampling(self.p_sampling,idx)
         
@@ -369,7 +369,7 @@ class CTABGANSynthesizer:
         data_dim = self.transformer.output_dim
         self.cond_generator = Cond(train_data, self.transformer.output_info)
         		
-        sides = [4, 8, 16, 24, 32, 64]
+        sides = [4, 8, 16, 24, 32, 64] #TODO: this coulc be made faster and computaionally faster (use math instead of this)
         col_size_d = data_dim + self.cond_generator.n_opt
         for i in sides:
             if i * i >= col_size_d:
@@ -568,6 +568,7 @@ class CTABGANSynthesizer:
             faket = self.Gtransformer.inverse_transform(fake)
             fakeact = apply_activate(faket,output_info)
             data.append(fakeact.detach().cpu().numpy())
+
 
         data = np.concatenate(data, axis=0)
         result,resample = self.transformer.inverse_transform(data)

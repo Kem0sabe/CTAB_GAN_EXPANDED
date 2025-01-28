@@ -13,6 +13,7 @@ class DataTransformer():
         self.categorical_columns= categorical_list
         self.mixed_columns= mixed_dict
         self.general_columns = general_list
+        self.non_categorical_columns= non_categorical_list #TODO: find out what to do with this
         # self.non_categorical_columns= non_categorical_list #TODO: look it to what to do here, we treat it as the remainding columns
         
    
@@ -204,12 +205,12 @@ class DataTransformer():
                   
                   self.ordering.append(None)
                   
-                  if id_ in self.non_categorical_columns:
+                  if id_ in self.non_categorical_columns: #Wtf is this?
                     info['min'] = -1e-3
                     info['max'] = info['max'] + 1e-3
                     
                   current = (current - (info['min'])) / (info['max'] - info['min'])
-                  current = current * 2 - 1 
+                  current = current * 2 - 1   #TODO: why do we do this? Like what are the reasoning behind the numbers
                   current = current.reshape([-1, 1])
                   values.append(current)
 
