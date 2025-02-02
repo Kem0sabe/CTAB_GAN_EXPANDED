@@ -55,7 +55,13 @@ class CTABGAN():
 
     def generate_samples(self):
         
-        sample = self.synthesizer.sample(len(self.raw_df)) 
+        #TODO: self.data_prep.get_label_encoders()
+        # This give the index for the label value which we are conditioning on
+        # Pass the whole list for the given index to the sample method, or just pass the index for which it is relative to the ...abs
+        n = 100
+        column_value_index = self.data_prep.get_label_encoded("workclass","4")
+        column_index = 1 # replace with workclass after
+        sample = self.synthesizer.sample(n,column_index,column_value_index) 
         sample_df = self.data_prep.inverse_prep(sample)
         
         return sample_df

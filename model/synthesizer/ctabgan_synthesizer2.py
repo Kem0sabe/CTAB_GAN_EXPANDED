@@ -55,37 +55,20 @@ class Classifier(Module):
 def apply_activate(data, output_info):
     data_t = []
     st = 0
-    for item in output_info:
-        if item[1] == 'tanh':
-            ed = st + item[0]
-            data_t.append(torch.tanh(data[:, st:ed]))
-            st = ed
-        elif item[1] == 'softmax':
-            ed = st + item[0]
-            data_t.append(F.gumbel_softmax(data[:, st:ed], tau=0.2))
+ 
+    for activations in output_info:
+        for activation in activations:
+            output_size, activation_type, _= activation
+            ed = st + output_size
+            if activation_type == 'tanh':
+                data_t.append(torch.tanh(data[:, st:ed]))
+            elif activation_type == 'softmax':
+                data_t.append(F.gumbel_softmax(data[:, st:ed], tau=0.2))
+            else:
+                raise ValueError('Activation function not supported')
             st = ed
     return torch.cat(data_t, dim=1)
 
-def get_st_ed(target_col_index,output_info):
-    st = 0
-    c= 0
-    tc= 0
-
-    for item in output_info:
-        if c==target_col_index:
-            break
-        if item[1]=='tanh':
-            st += item[0]
-            if item[2] == 'yes_g':
-                c+=1
-        elif item[1] == 'softmax':
-            st += item[0]
-            c+=1
-        tc+=1    
-    
-    ed= st+output_info[tc][0] 
-
-    return (st,ed)
 
 def random_choice_prob_index_sampling(probs,col_idx):
     option_list = []
@@ -99,10 +82,12 @@ def random_choice_prob_index(a, axis=1):
     r = np.expand_dims(np.random.rand(a.shape[1 - axis]), axis=axis)
     return (a.cumsum(axis=axis) > r).argmax(axis=axis)
 
-def maximum_interval(output_info):
+def maximum_output_interval(output_info):
     max_interval = 0
-    for item in output_info:
-        max_interval = max(max_interval, item[0])
+    for activations in output_info:
+        for activation in activations:
+            output_size = activation[0]
+        max_interval = max(max_interval, output_size)
     return max_interval
 
 class Cond(object):
@@ -111,48 +96,58 @@ class Cond(object):
         self.model = []
         st = 0
         counter = 0
-        for item in output_info:
-           
-            if item[1] == 'tanh':
-                st += item[0]
-                continue
-            elif item[1] == 'softmax':
-                ed = st + item[0]
-                counter += 1
-                self.model.append(np.argmax(data[:, st:ed], axis=-1))
-                st = ed
+        for activations in output_info:
+            for activation in activations:
+                output_size, activation_type, _= activation
+                if activation_type not in ['tanh', 'softmax']: 
+                    raise ValueError('Activation function not supported')
+                
+                if activation_type == 'softmax':
+                    ed = st + output_size
+                    counter += 1
+                    self.model.append(np.argmax(data[:, st:ed], axis=-1))
+
+                st += output_size
+                
+                    
+
             
         self.interval = []
         self.n_col = 0  
         self.n_opt = 0  
         st = 0
-        self.p = np.zeros((counter , maximum_interval(output_info)))  
-        self.p_sampling = []
-        for item in output_info:
-            if item[1] == 'tanh':
-                st += item[0]
-                continue
-            elif item[1] == 'softmax': 
-                ed = st + item[0]
-                tmp = np.sum(data[:, st:ed], axis=0)  
-                tmp_sampling = np.sum(data[:, st:ed], axis=0)     
-                tmp = np.log(tmp + 1)  
-                tmp = tmp / np.sum(tmp) 
-                tmp_sampling = tmp_sampling / np.sum(tmp_sampling)
-                self.p_sampling.append(tmp_sampling)
-                self.p[self.n_col, :item[0]] = tmp 
-                self.interval.append((self.n_opt, item[0]))
-                self.n_opt += item[0]
-                self.n_col += 1
-                st = ed
+        self.p = np.zeros((counter , maximum_output_interval(output_info)))  
+        #self.p_sampling = []
+        self.col_to_cat_index = []  #for converting column index to category index when conditioning on generated data
+        
+        for col_index, activations in enumerate(output_info):
+            for activation in activations:
+                output_size, activation_type, _= activation
+                categorical_index = None
+                if activation_type not in ['tanh', 'softmax']: 
+                    raise ValueError('Activation function not supported')
+                
+                if activation_type == 'softmax': # 
+                    ed = st + output_size
+                    tmp = np.sum(data[:, st:ed], axis=0)
+                    tmp = np.log(tmp + 1)
+                    tmp = tmp / np.sum(tmp)
+                    self.p[self.n_col, :output_size] = tmp
+                    self.interval.append((self.n_opt, output_size))
+                    self.n_opt += output_size
+                    categorical_index = self.n_col
+                    self.n_col += 1
+                
+                self.col_to_cat_index.append(categorical_index)
+
+                
+                st += output_size
                 
         self.interval = np.asarray(self.interval)
         
     def sample_train(self, batch):
-        if self.n_col == 0:
-            return None
-        batch = batch
-
+        if self.n_col == 0: return None
+    
         idx = np.random.choice(np.arange(self.n_col), batch)
         vec = np.zeros((batch, self.n_opt), dtype='float32')
         mask = np.zeros((batch, self.n_col), dtype='float32')
@@ -163,16 +158,22 @@ class Cond(object):
             
         return vec, mask, idx, opt1prime
 
-    def sample(self, batch):
-        if self.n_col == 0:
-            return None
-        batch = batch
-      
-        idx = np.random.choice(np.arange(self.n_col), batch)
-        idx2 = np.full(batch, 11)
-        idx = idx2
+    def sample(self, batch,column_index,column_value_index):
+        if self.n_col == 0: return None
+
+        cat_index = self.col_to_cat_index[column_index]
+        idy = np.full(batch, cat_index) 
+        opt1fixed = column_value_index
         vec = np.zeros((batch, self.n_opt), dtype='float32')
-        opt1prime = random_choice_prob_index_sampling(self.p_sampling,idx)
+        for i in np.arange(batch):
+            vec[i, self.interval[idy[i], 0] + opt1fixed] = 1
+
+        return vec
+        idx = np.random.choice(np.arange(self.n_col), batch)
+        #idx2 = np.full(batch, 11)
+        #idx = idx2
+        vec = np.zeros((batch, self.n_opt), dtype='float32')
+        opt1prime = random_choice_prob_index_sampling(self.p,idx)
         
         for i in np.arange(batch):
             vec[i, self.interval[idx[i], 0] + opt1prime[i]] = 1
@@ -183,21 +184,24 @@ def cond_loss(data, output_info, c, m):
     loss = []
     st = 0
     st_c = 0
-    for item in output_info:
-        if item[1] == 'tanh':
-            st += item[0]
-            continue
 
-        elif item[1] == 'softmax':
-            ed = st + item[0]
-            ed_c = st_c + item[0]
-            tmp = F.cross_entropy(
-            data[:, st:ed],
-            torch.argmax(c[:, st_c:ed_c], dim=1),
-            reduction='none')
-            loss.append(tmp)
-            st = ed
-            st_c = ed_c
+    for activations in output_info:
+        for activation in activations:
+            output_size, activation_type, _= activation
+            if activation_type not in ['tanh', 'softmax']: 
+                raise ValueError('Activation function not supported')
+                
+            if activation_type == 'softmax':
+                ed = st + output_size
+                ed_c = st_c + output_size
+                tmp = F.cross_entropy(
+                data[:, st:ed],
+                torch.argmax(c[:, st_c:ed_c], dim=1),
+                reduction='none')
+                loss.append(tmp)
+                st_c = ed_c
+            
+            st += output_size
 
     loss = torch.stack(loss, dim=1)
     return (loss * m).sum() / data.size()[0]
@@ -209,17 +213,21 @@ class Sampler(object):
         self.model = []
         self.n = len(data)
         st = 0
-        for item in output_info:
-            if item[1] == 'tanh':
-                st += item[0]
-                continue
-            elif item[1] == 'softmax':
-                ed = st + item[0]
-                tmp = []
-                for j in range(item[0]):
-                    tmp.append(np.nonzero(data[:, st + j])[0])
-                self.model.append(tmp)
-                st = ed
+        
+        for activations in output_info:
+            for activation in activations:
+                output_size, activation_type, _= activation
+                if activation_type == 'tanh':
+                    st += output_size
+                    continue
+                elif activation_type == 'softmax':
+                    ed = st + output_size
+                    tmp = []
+                    for j in range(output_size):
+                        tmp.append(np.nonzero(data[:, st + j])[0])
+                    self.model.append(tmp)
+                else:
+                    raise ValueError('Activation function not supported')
                 
     def sample(self, n, col, opt):
         if col is None:
@@ -370,7 +378,7 @@ class CTABGANSynthesizer:
         self.cond_generator = Cond(train_data, self.transformer.output_info)
         		
         sides = [4, 8, 16, 24, 32, 64] #TODO: this coulc be made faster and computaionally faster (use math instead of this)
-        col_size_d = data_dim + self.cond_generator.n_opt
+        col_size_d = data_dim + self.cond_generator.n_opt #TODO: what happens here why datafim + n_opt
         for i in sides:
             if i * i >= col_size_d:
                 self.dside = i
@@ -547,7 +555,7 @@ class CTABGANSynthesizer:
 
             
    
-    def sample(self, n):
+    def sample(self, n, column_index = None,column_value_index = None): #TODO: move the column value and indexes to other places
         
         self.generator.eval()
 
@@ -558,7 +566,7 @@ class CTABGANSynthesizer:
         
         for i in range(steps):
             noisez = torch.randn(self.batch_size, self.random_dim, device=self.device)
-            condvec = self.cond_generator.sample(self.batch_size)
+            condvec = self.cond_generator.sample(self.batch_size, column_index,column_value_index)
             c = condvec
             c = torch.from_numpy(c).to(self.device)
             noisez = torch.cat([noisez, c], dim=1)

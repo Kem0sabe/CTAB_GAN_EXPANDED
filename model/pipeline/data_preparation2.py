@@ -116,3 +116,16 @@ class DataPrep(object):
         data_pd.replace('empty', np.nan,inplace=True)
 
         return data_pd
+
+    def get_label_encoder(self, col_name):
+        for i in range(len(self.label_encoder_list)):
+            if self.label_encoder_list[i]["column"] == col_name:
+                return self.label_encoder_list[i]["label_encoder"]
+        return None
+
+    def get_label_encoded(self, col_name, value):
+        encoder = self.get_label_encoder(col_name)
+        if not encoder: raise ValueError("Column name", col_name, "not found")
+        if not value in encoder.classes_: raise ValueError("Value", value, "not found in column", col_name)
+        return encoder.transform([value])[0]
+        

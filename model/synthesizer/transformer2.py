@@ -52,6 +52,7 @@ class DataTransformer():
 
     def fit_continuous(self, data, id_):
         if id_ not in self.general_columns:
+        
             gm = BayesianGaussianMixture(
                 n_components = self.n_clusters, 
                 weight_concentration_prior_type='dirichlet_process',
@@ -61,19 +62,16 @@ class DataTransformer():
             mode_freq = (pd.Series(gm.predict(data[:, id_].reshape([-1, 1]))).value_counts().keys())
             self.model.append(gm)
             old_comp = gm.weights_ > self.eps
-            comp = []
-            for i in range(self.n_clusters):
-                if (i in (mode_freq)) & old_comp[i]:
-                    comp.append(True)
-                else:
-                    comp.append(False)
+            # The final components are the ones that are frequent and have a weigh greater than the eps cutoff
+            comp = [(i in mode_freq) & old_comp[i] for i in range(self.n_clusters)]
+
             self.components.append(comp) 
-            self.output_info += [(1, 'tanh','no_g'), (np.sum(comp), 'softmax')]
+            self.output_info.append([(1, 'tanh','no_g'), (np.sum(comp), 'softmax',None)])
             self.output_dim += 1 + np.sum(comp)
         else:
             self.model.append(None)
             self.components.append(None)
-            self.output_info += [(1, 'tanh','yes_g')]
+            self.output_info.append([(1, 'tanh','yes_g')])
             self.output_dim += 1
         
 
@@ -92,43 +90,45 @@ class DataTransformer():
         
         gm1.fit(data[:, id_].reshape([-1, 1]))
         
+        """
         filter_arr = []
         for element in data[:, id_]:
             if element not in modal:
                 filter_arr.append(True)
             else:
                 filter_arr.append(False)
-       
-        gm2.fit(data[:, id_][filter_arr].reshape([-1, 1]))
-        mode_freq = (pd.Series(gm2.predict(data[:, id_][filter_arr].reshape([-1, 1]))).value_counts().keys())
+
+        f2 = filter_arr.copy()
+        """
+        filter_arr = ~np.isin(data[:, id_], modal) # Find the indices of elements in data[:, id_] that are not in modal (aka that are not in the normal continuous data)
+        data_continuous = data[:, id_][filter_arr].reshape([-1, 1]) # The observations where we have continuous data, excluding the modal/categorical data
+        gm2.fit(data_continuous)
+
+        component_assignments = gm2.predict(data_continuous) # Assigns each observation to a component
+
+        mode_freq = pd.Series(component_assignments).value_counts().keys() # Calculate the frequency of each component assignment
+
         self.filter_arr.append(filter_arr)
         self.model.append((gm1,gm2))
        
-        old_comp = gm2.weights_ > self.eps
+        old_comp = gm2.weights_ > self.eps # To prevent the model from overfitting? removes components that are less than eps
           
-        comp = []
-          
-        for i in range(self.n_clusters):
-            if (i in (mode_freq)) & old_comp[i]:
-                comp.append(True)
-            else:
-                comp.append(False)
+        # The final components are the ones that are frequent and have a weigh greater than the eps cutoff
+        comp = [(i in mode_freq) & old_comp[i] for i in range(self.n_clusters)]
 
         self.components.append(comp)
 
-        self.output_info += [(1, 'tanh',"no_g"), (np.sum(comp) + len(modal), 'softmax')]
+        self.output_info.append([(1, 'tanh',"no_g"), (np.sum(comp) + len(modal), 'softmax', None)])
         self.output_dim += 1 + np.sum(comp) + len(modal)
         
 
     def fit_categorical(self, data, id_,size):
-        
         self.model.append(None)
         self.components.append(None)
-        self.output_info += [(size, 'softmax')]
+        self.output_info.append([(size, 'softmax', None)])
         self.output_dim += size
         
-
-    
+  
             
 
 
@@ -141,7 +141,9 @@ class DataTransformer():
         self.output_dim = 0
         self.components = []
         self.filter_arr = []
+
         for id_, info in enumerate(self.meta):
+            
             type_column = info['type']
             if type_column == "continuous":
                 self.fit_continuous(data, id_)
@@ -151,6 +153,7 @@ class DataTransformer():
                 self.fit_categorical(data, id_,info["size"])
             else:
                 raise ValueError("Unknown column type when fitting transformer")
+        return
         
 
     def transform(self, data, ispositive = False, positive_list = None):
