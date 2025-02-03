@@ -307,9 +307,11 @@ class DataTransformer():
     
             else:
                 self.ordering.append(None)
+                #col_t = np.zeros([len(data), info['size']])
+                #idx = list(map(info['i2s'].index, current))
+                #col_t[np.arange(len(data)), idx] = 1
                 col_t = np.zeros([len(data), info['size']])
-                idx = list(map(info['i2s'].index, current))
-                col_t[np.arange(len(data)), idx] = 1
+                col_t[np.arange(len(data)), current] = 1
                 values.append(col_t)
                 
         return np.concatenate(values, axis=1)
@@ -411,7 +413,9 @@ class DataTransformer():
                 current = data[:, st:st + info['size']]
                 st += info['size']
                 idx = np.argmax(current, axis=1)
-                data_t[:, id_] = list(map(info['i2s'].__getitem__, idx))
+                #data_t[:, id_] = list(map(info['i2s'].__getitem__, idx))
+                #data_t[:, id_] = list(map(info['i2s'].__getitem__, current))
+                data_t[:, id_] = idx
             
             
         invalid_ids = np.unique(np.array(invalid_ids)) 
