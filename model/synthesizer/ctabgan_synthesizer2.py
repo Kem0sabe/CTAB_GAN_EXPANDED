@@ -121,9 +121,9 @@ class Cond(object):
         self.col_to_cat_index = []  #for converting column index to category index when conditioning on generated data
         
         for col_index, activations in enumerate(output_info):
+            categorical_index = None
             for activation in activations:
                 output_size, activation_type, _= activation
-                categorical_index = None
                 if activation_type not in ['tanh', 'softmax']: 
                     raise ValueError('Activation function not supported')
                 
@@ -137,11 +137,12 @@ class Cond(object):
                     self.n_opt += output_size
                     categorical_index = self.n_col
                     self.n_col += 1
-                
-                self.col_to_cat_index.append(categorical_index)
-
+                    
                 
                 st += output_size
+
+            self.col_to_cat_index.append(categorical_index)
+                
                 
         self.interval = np.asarray(self.interval)
         
