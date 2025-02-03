@@ -66,3 +66,10 @@ class CTABGAN():
         sample_df = self.data_prep.inverse_prep(sample)
         
         return sample_df
+
+    def generate_samples_index(self,n=100,index=None):
+
+        sample = self.synthesizer.sample(n,index)
+        sample_df = self.data_prep.inverse_prep(sample)
+
+        return sample_df
