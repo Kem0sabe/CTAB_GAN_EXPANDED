@@ -227,6 +227,7 @@ class Sampler(object):
                     for j in range(output_size):
                         tmp.append(np.nonzero(data[:, st + j])[0])
                     self.model.append(tmp)
+                    st = ed
                 else:
                     raise ValueError('Activation function not supported')
                 
