@@ -50,7 +50,7 @@ class DataTransformer():
 
         return meta
 
-    def fit_continuous(self, data, id_):
+    def fit_continuous(self, data_col, id_):
         if id_ not in self.general_columns:
         
             gm = BayesianGaussianMixture(
@@ -58,8 +58,8 @@ class DataTransformer():
                 weight_concentration_prior_type='dirichlet_process',
                 weight_concentration_prior=0.001, 
                 max_iter=100,n_init=1, random_state=42)
-            gm.fit(data[:, id_].reshape([-1, 1]))
-            mode_freq = (pd.Series(gm.predict(data[:, id_].reshape([-1, 1]))).value_counts().keys())
+            gm.fit(data_col.reshape([-1, 1]))
+            mode_freq = (pd.Series(gm.predict(data_col.reshape([-1, 1]))).value_counts().keys())
             self.model.append(gm)
             old_comp = gm.weights_ > self.eps
             # The final components are the ones that are frequent and have a weigh greater than the eps cutoff
@@ -75,7 +75,7 @@ class DataTransformer():
             self.output_dim += 1
         
 
-    def fit_mixed(self, data, id_,modal):
+    def fit_mixed(self, data_col, id_,modal):
 
         gm1 = BayesianGaussianMixture(
             n_components = self.n_clusters, 
@@ -88,7 +88,7 @@ class DataTransformer():
             weight_concentration_prior=0.001, max_iter=100,
             n_init=1,random_state=42)
         
-        gm1.fit(data[:, id_].reshape([-1, 1]))
+        gm1.fit(data_col.reshape([-1, 1]))
         
         """
         filter_arr = []
@@ -100,8 +100,8 @@ class DataTransformer():
 
         f2 = filter_arr.copy()
         """
-        filter_arr = ~np.isin(data[:, id_], modal) # Find the indices of elements in data[:, id_] that are not in modal (aka that are not in the normal continuous data)
-        data_continuous = data[:, id_][filter_arr].reshape([-1, 1]) # The observations where we have continuous data, excluding the modal/categorical data
+        filter_arr = ~np.isin(data_col, modal) # Find the indices of elements in data[:, id_] that are not in modal (aka that are not in the normal continuous data)
+        data_continuous = data_col[filter_arr].reshape([-1, 1]) # The observations where we have continuous data, excluding the modal/categorical data
         gm2.fit(data_continuous)
 
         component_assignments = gm2.predict(data_continuous) # Assigns each observation to a component
@@ -122,7 +122,7 @@ class DataTransformer():
         self.output_dim += 1 + np.sum(comp) + len(modal)
         
 
-    def fit_categorical(self, data, id_,size):
+    def fit_categorical(self, data_col, id_,size):
         self.model.append(None)
         self.components.append(None)
         self.output_info.append([(size, 'softmax', None)])
@@ -133,7 +133,9 @@ class DataTransformer():
 
 
     def fit(self):
-        data = self.train_data.values
+        t = self.train_data.dtypes
+        # data = self.train_data.values # The convertion is moved to columnswise to preserve the datatypes
+        data = self.train_data
         self.meta = self.get_metadata()
         self.model = []
         self.ordering = []
@@ -143,14 +145,14 @@ class DataTransformer():
         self.filter_arr = []
 
         for id_, info in enumerate(self.meta):
-            
+            data_col = data.iloc[:,id_].to_numpy()
             type_column = info['type']
             if type_column == "continuous":
-                self.fit_continuous(data, id_)
+                self.fit_continuous(data_col, id_)
             elif type_column == "mixed":
-                self.fit_mixed(data, id_,info["modal"])
+                self.fit_mixed(data_col, id_,info["modal"])
             elif type_column == "categorical":
-                self.fit_categorical(data, id_,info["size"])
+                self.fit_categorical(data_col, id_,info["size"])
             else:
                 raise ValueError("Unknown column type when fitting transformer")
         return
@@ -160,7 +162,8 @@ class DataTransformer():
         values = []
         mixed_counter = 0
         for id_, info in enumerate(self.meta):
-            current = data[:, id_]
+            #current = data[:, id_]
+            current = data.iloc[:,id_].to_numpy()
             if info['type'] == "continuous":
                 if id_ not in self.general_columns: 
                   current = current.reshape([-1, 1])

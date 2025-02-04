@@ -42,7 +42,7 @@ class CTABGAN():
         start_time = time.time()
         self.data_prep = DataPrep(self.raw_df,self.categorical_columns,self.log_columns,self.mixed_columns,self.general_columns,self.non_categorical_columns,self.integer_columns,self.problem_type,self.test_ratio)
         df = self.data_prep.df
-        
+        t = df.dtypes
         end_time = time.time()
     
         
@@ -69,7 +69,7 @@ class CTABGAN():
 
     def generate_samples_index(self,n=100,index=None):
 
-        sample = self.synthesizer.sample(n,index)
+        sample = self.synthesizer.sample(n,0,index)
         sample_df = self.data_prep.inverse_prep(sample)
 
         return sample_df
