@@ -172,7 +172,7 @@ class Cond(object):
 
         if column_index is not None and column_value_index is not None: #If condition is specified we generate sample with such a condition
             return self.sample_condition(batch, column_index, column_value_index)
-            
+
         idx = np.random.choice(np.arange(self.n_col), batch)
         vec = np.zeros((batch, self.n_opt), dtype='float32')
         opt1prime = random_choice_prob_index_sampling(self.p,idx)
@@ -184,9 +184,8 @@ class Cond(object):
         
         cat_index = self.col_to_cat_index[column_index]
         idx = np.full(batch, cat_index) 
-        opt1fixed = column_value_index
         vec = np.zeros((batch, self.n_opt), dtype='float32')
-        vec[np.arange(batch), self.interval[idx, 0] + opt1prime] = 1
+        vec[np.arange(batch), self.interval[idx, 0] + column_value_index] = 1
 
         return vec # TODO: make it such you do not have to specify
 

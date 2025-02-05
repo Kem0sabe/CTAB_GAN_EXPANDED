@@ -56,8 +56,8 @@ class CTABGAN():
     def generate_samples(self,n=100,conditioning_column = None,conditioning_value = None):
         
         
-        column_index = self.data_prep.df.columns.get_loc(conditioning_column) if conditioning_column else None
-        column_value_index = self.data_prep.get_label_encoded(conditioning_column, conditioning_value) if column_index and conditioning_value else None
+        column_index = self.data_prep.df.columns.get_loc(conditioning_column) if conditioning_column in self.data_prep.df.columns else ValueError("Conditioning column", conditioning_column, "not found in the data columns")
+        column_value_index = self.data_prep.get_label_encoded(conditioning_column, conditioning_value)
 
         sample = self.synthesizer.sample(n,column_index,column_value_index) 
         return self.data_prep.inverse_prep(sample)

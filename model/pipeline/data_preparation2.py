@@ -117,14 +117,14 @@ class DataPrep(object):
 
         return data_pd
 
-    def get_label_encoder(self, col_name): # TODO: not in use anymore?
+    def get_label_encoder(self, col_name): # TODO: change to use the index?
         for i in range(len(self.label_encoder_list)):
             if self.label_encoder_list[i]["column"] == col_name:
                 return self.label_encoder_list[i]["label_encoder"]
         return None
 
     def get_label_encoded(self, col_name, value):
-        if col_name is None: return None
+        if col_name is None: return None #TODO: remove this since we have a check at another point
         encoder = self.get_label_encoder(col_name)
         if not encoder: raise ValueError("Column name", col_name, "not found")
         if not value in encoder.classes_: raise ValueError("Value", value, "not found in column", col_name)
