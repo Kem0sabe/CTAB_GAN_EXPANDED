@@ -599,7 +599,7 @@ class CTABGANSynthesizer:
             
             for i in range(steps_left):
                 noisez = torch.randn(self.batch_size, self.random_dim, device=self.device)
-                condvec = self.cond_generator.sample(self.batch_size)
+                condvec = self.cond_generator.sample(self.batch_size, column_index,column_value_index)
                 c = condvec
                 c = torch.from_numpy(c).to(self.device)
                 noisez = torch.cat([noisez, c], dim=1)

@@ -285,7 +285,7 @@ class DataTransformer():
                 temp_probs_onehot = np.concatenate([extra_bits,probs_onehot], axis = 1)
                 final = np.zeros([len(data), 1 + probs_onehot.shape[1] + len(info['modal'])])
                 features_curser = 0
-                for idx, val in enumerate(data[:, id_]):
+                for idx, val in enumerate(current): #TODO: This should be as current instead, since now we are using the original data, this might fix the pr
                     if val in info['modal']:
                         category_ = list(map(info['modal'].index, [val]))[0]
                         final[idx, 0] = mode_vals[category_]
