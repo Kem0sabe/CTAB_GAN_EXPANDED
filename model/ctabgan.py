@@ -55,17 +55,14 @@ class CTABGAN():
 
     def generate_samples(self,n=100,conditioning_column = None,conditioning_value = None):
         
-        #TODO: self.data_prep.get_label_encoders()
-        # This give the index for the label value which we are conditioning on
-        # Pass the whole list for the given index to the sample method, or just pass the index for which it is relative to the ...abs
-        n = 100
-        column_value_index = self.data_prep.get_label_encoded(conditioning_column,conditioning_value)
-        column_index = self.data_prep.df.columns.get_loc(conditioning_column)
+        
+        column_index = self.data_prep.df.columns.get_loc(conditioning_column) if conditioning_column else None
+        column_value_index = self.data_prep.get_label_encoded(conditioning_column, conditioning_value) if column_index and conditioning_value else None
 
         sample = self.synthesizer.sample(n,column_index,column_value_index) 
-        sample_df = self.data_prep.inverse_prep(sample)
+        return self.data_prep.inverse_prep(sample)
         
-        return sample_df
+  
 
     def generate_samples_index(self,n=100,index=None):
 

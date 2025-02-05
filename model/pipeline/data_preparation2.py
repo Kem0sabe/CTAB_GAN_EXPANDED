@@ -7,7 +7,7 @@ class DataPrep(object):
   
     def __init__(self, raw_df: pd.DataFrame, categorical: list, log:list, mixed:dict, general:list, non_categorical:list, integer:list, type:dict, test_ratio:float):
         
-        
+        ty = raw_df.dtypes
         self.categorical_columns = categorical
         self.log_columns = log
         self.mixed_columns = mixed
@@ -113,17 +113,18 @@ class DataPrep(object):
                 data_pd[column] = data_pd[column].astype(int)
 
         data_pd.replace(-9999999, np.nan,inplace=True)
-        data_pd.replace('empty', np.nan,inplace=True)
+        data_pd.replace('empty', np.nan,inplace=True) # TODO: is this needed
 
         return data_pd
 
-    def get_label_encoder(self, col_name):
+    def get_label_encoder(self, col_name): # TODO: not in use anymore?
         for i in range(len(self.label_encoder_list)):
             if self.label_encoder_list[i]["column"] == col_name:
                 return self.label_encoder_list[i]["label_encoder"]
         return None
 
     def get_label_encoded(self, col_name, value):
+        if col_name is None: return None
         encoder = self.get_label_encoder(col_name)
         if not encoder: raise ValueError("Column name", col_name, "not found")
         if not value in encoder.classes_: raise ValueError("Value", value, "not found in column", col_name)

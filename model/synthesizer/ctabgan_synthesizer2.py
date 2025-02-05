@@ -11,7 +11,7 @@ from model.synthesizer.transformer2 import ImageTransformer,DataTransformer
 from model.privacy_utils.rdp_accountant import compute_rdp, get_privacy_spent
 from tqdm import tqdm
 
-
+"""
 class Classifier(Module):
     def __init__(self,input_dim, dis_dims,st_ed):
         super(Classifier,self).__init__()
@@ -51,7 +51,7 @@ class Classifier(Module):
             return self.seq(new_imp).view(-1), label
         else:
             return self.seq(new_imp), label
-
+"""
 def apply_activate(data, output_info):
     data_t = []
     st = 0
@@ -76,6 +76,10 @@ def random_choice_prob_index_sampling(probs,col_idx):
         pp = probs[i]
         option_list.append(np.random.choice(np.arange(len(probs[i])), p=pp))
     
+    #TODO: rewrite it in vector form (this only used in the sampling)
+    #selected_probs = probs[col_idx]
+    #k = np.array([np.random.choice(len(p), p=p) for p in selected_probs])
+    #k1 = np.array(option_list).reshape(col_idx.shape)
     return np.array(option_list).reshape(col_idx.shape)
 
 def random_choice_prob_index(a, axis=1):
@@ -151,35 +155,42 @@ class Cond(object):
     
         idx = np.random.choice(np.arange(self.n_col), batch)
         vec = np.zeros((batch, self.n_opt), dtype='float32')
+        
         mask = np.zeros((batch, self.n_col), dtype='float32')
         mask[np.arange(batch), idx] = 1  
         opt1prime = random_choice_prob_index(self.p[idx]) 
         for i in np.arange(batch):
             vec[i, self.interval[idx[i], 0] + opt1prime[i]] = 1
+
+        vec[np.arange(batch), self.interval[idx, 0] + opt1prime] = 1 # The zero is placed at the the start interval of the idx + the offset for the categorical value
+
             
         return vec, mask, idx, opt1prime
 
     def sample(self, batch,column_index,column_value_index):
-        if self.n_col == 0: return None
+        if self.n_col == 0: return None #TODO: does this mean we need at least one categorical column?
 
-        cat_index = self.col_to_cat_index[column_index]
-        idy = np.full(batch, cat_index) 
-        opt1fixed = column_value_index
-        vec = np.zeros((batch, self.n_opt), dtype='float32')
-        for i in np.arange(batch):
-            vec[i, self.interval[idy[i], 0] + opt1fixed] = 1
-
-        return vec
+        if column_index is not None and column_value_index is not None: #If condition is specified we generate sample with such a condition
+            return self.sample_condition(batch, column_index, column_value_index)
+            
         idx = np.random.choice(np.arange(self.n_col), batch)
-        #idx2 = np.full(batch, 11)
-        #idx = idx2
         vec = np.zeros((batch, self.n_opt), dtype='float32')
         opt1prime = random_choice_prob_index_sampling(self.p,idx)
-        
-        for i in np.arange(batch):
-            vec[i, self.interval[idx[i], 0] + opt1prime[i]] = 1
+        vec[np.arange(batch), self.interval[idx, 0] + opt1prime] = 1
             
         return vec
+
+    def sample_condition(self, batch, column_index, column_value_index):
+        
+        cat_index = self.col_to_cat_index[column_index]
+        idx = np.full(batch, cat_index) 
+        opt1fixed = column_value_index
+        vec = np.zeros((batch, self.n_opt), dtype='float32')
+        vec[np.arange(batch), self.interval[idx, 0] + opt1prime] = 1
+
+        return vec # TODO: make it such you do not have to specify
+
+    
 
 def cond_loss(data, output_info, c, m):
     loss = []
