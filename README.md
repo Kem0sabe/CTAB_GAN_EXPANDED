@@ -1,3 +1,9 @@
+# Rewrite of CTAB_GAN+ 
+This is a rewrite of the CTAB-GAN+ found in https://github.com/Team-TUD/CTAB-GAN-Plus, which should be credited with their work on a solid tabular data GAN. 
+
+## Ongoing project
+This is part of an ongoing project trying speed up and implement new features to this framework. The readme file from the original github follows below.
+
 # NEWS! - 19/11/2023
 Our new paper [TabuLa: Harnessing Language Models for Tabular Data Synthesis](https://arxiv.org/abs/2310.12746) is on arxiv now! The code is published 
 [here](https://github.com/zhao-zilong/Tabula). Tabula improves tabular data synthesis by leveraging language model structures without the burden of pre-trained model weights. It offers a faster training process by preprocessing tabular data to shorten token sequence, which sharply reducing training time while consistently delivering higher-quality synthetic data. Its training time is longer than CTAB-GAN+, but the synthetic data fidelity is amazing! **It also works for high-dimentional categorical columns!**
