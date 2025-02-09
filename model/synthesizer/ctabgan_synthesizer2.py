@@ -217,6 +217,75 @@ def cond_loss(data, output_info, c, m):
     loss = torch.stack(loss, dim=1)
     return (loss * m).sum() / data.size()[0]
 
+def compute_constraint_penalty(data):
+    
+
+    # Compute the difference between the first and second columns
+    diff = data[:, 0] - data[:, 1]
+
+    # Apply ReLU to the negative differences to get the penalty
+    penalty = F.relu(-diff)
+
+    # Sum the penalties to get the total constraint penalty
+    total_penalty = penalty.sum()
+
+    return total_penalty
+
+
+def inverse_transform2(data, meta, components_list, ordering, model, general_columns, n_clusters,device):
+
+    
+
+    data_t = torch.zeros(len(data), len(meta), device=device)
+    invalid_ids = []
+    st = 0
+    for id_, info in enumerate(meta):
+        if info['type'] == "continuous":
+            if id_ not in general_columns:
+                comp = components_list[id_]
+                
+                components = torch.tensor(comp, dtype=torch.bool).to(device)
+                u = data[:, st]  # Then tahn component for "concatenating" the different components
+                v = data[:, st + 1:st + 1 + torch.sum(components).item()]  # The different components
+                order = ordering[id_]
+
+                # Ensure order is a tensor
+                order = torch.tensor(order, device=device)
+                v = v[:, torch.argsort(order)]
+                
+                v_t = torch.ones((data.shape[0], n_clusters), device=device) * -float('inf')
+                v_t[:, components] = v
+                v = v_t
+
+                p_argmax = torch.argmax(v, dim=1)
+                means = torch.tensor(model[id_].means_.reshape([-1]), device=device)
+                stds = torch.tensor(model[id_].covariances_.reshape([-1]), device=device)
+                stds = torch.sqrt(stds)
+                std_t = stds[p_argmax]
+                mean_t = means[p_argmax]
+
+                u = torch.clamp(u, -1, 1)
+                tmp = u * 4 * std_t + mean_t
+
+                for idx, val in enumerate(tmp):
+                    if (val < info["min"]) | (val > info['max']):
+                        invalid_ids.append(idx)
+
+                if id_ in general_columns:
+                    tmp = torch.round(tmp)
+
+                data_t[:, id_] = tmp
+
+                st += 1 + torch.sum(components).item()  # Increment for next iteration
+
+            else:
+                u = data[:, st]
+                u = (u + 1) / 2
+                u = torch.clamp(u, 0, 1)
+                u = u * (info['max'] - info['min']) + info['min']
+
+    return data_t, invalid_ids
+
 class Sampler(object):
     def __init__(self, data, output_info):
         super(Sampler, self).__init__()
@@ -510,12 +579,23 @@ class CTABGANSynthesizer:
                     
                 y_fake,info_fake = discriminator(fake_cat)
                 
-                cross_entropy = cond_loss(faket, self.transformer.output_info, c, m)
-
-                _,info_real = discriminator(real_cat_d)
+                cross_entropy = cond_loss(faket, self.transformer.output_info, c, m) 
+                inverse2, _ = inverse_transform2(fakeact,self.transformer.meta, self.transformer.components, 
+                self.transformer.ordering, self.transformer.model, self.transformer.general_columns, self.transformer.n_clusters,device=self.device)
+                constraint_penalty = compute_constraint_penalty(inverse2)
                 
+                constraint_constant = 1e-1
+                """
+                fake_cat2 = fakeact
+                fake_cat2 = fake_cat2.detach().cpu().numpy()
+                fake_cat2_norm = self.transformer.inverse_transform(fake_cat2)
+                """
+                _,info_real = discriminator(real_cat_d)
 
-                g = -torch.mean(y_fake) + cross_entropy
+                print("Cross Entropy: ", cross_entropy, "\nConstraint Penalty: ", constraint_penalty, "\nThe...", -torch.mean(y_fake))
+        
+
+                g = -torch.mean(y_fake) + cross_entropy + constraint_constant * constraint_penalty
                 g.backward(retain_graph=True)
                 loss_mean = torch.norm(torch.mean(info_fake.view(self.batch_size,-1), dim=0) - torch.mean(info_real.view(self.batch_size,-1), dim=0), 1)
                 loss_std = torch.norm(torch.std(info_fake.view(self.batch_size,-1), dim=0) - torch.std(info_real.view(self.batch_size,-1), dim=0), 1)
@@ -567,6 +647,9 @@ class CTABGANSynthesizer:
 
             
    
+
+
+
     def sample(self, n, column_index = None,column_value_index = None): #TODO: move the column value and indexes to other places
         
         self.generator.eval()

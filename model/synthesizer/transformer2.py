@@ -326,46 +326,44 @@ class DataTransformer():
         for id_, info in enumerate(self.meta):
             if info['type'] == "continuous":
                 if id_ not in self.general_columns:
-                  u = data[:, st]
-                  v = data[:, st + 1:st + 1 + np.sum(self.components[id_])]
-                  order = self.ordering[id_] 
-                  v_re_ordered = np.zeros_like(v)
-
-                  for id,val in enumerate(order):
-                      v_re_ordered[:,val] = v[:,id]
-                  
-                  v = v_re_ordered
-
-                  u = np.clip(u, -1, 1)
-                  v_t = np.ones((data.shape[0], self.n_clusters)) * -100
-                  v_t[:, self.components[id_]] = v
-                  v = v_t
-                  st += 1 + np.sum(self.components[id_])
-                  means = self.model[id_].means_.reshape([-1])
-                  stds = np.sqrt(self.model[id_].covariances_).reshape([-1])
-                  p_argmax = np.argmax(v, axis=1)
-                  std_t = stds[p_argmax]
-                  mean_t = means[p_argmax]
-                  tmp = u * 4 * std_t + mean_t
-                                    
-                  for idx,val in enumerate(tmp):
-                     if (val < info["min"]) | (val > info['max']):
-                         invalid_ids.append(idx)
-                  
-                  if id_ in self.non_categorical_columns:
+                    components = self.components[id_] 
+                    u = data[:, st] # Then tahn component for "concatinating" the different components
+                    v = data[:, st + 1:st + 1 + np.sum(components)] # The different components
+                    order = self.ordering[id_]
+                    v = v[:,np.argsort(order)]
                     
-                    tmp = np.round(tmp)
-                  
-                  data_t[:, id_] = tmp
+                    
+                    v_t = np.ones((data.shape[0], self.n_clusters)) * -np.inf
+                    v_t[:, components] = v
+                    v = v_t
+                    p_argmax = np.argmax(v, axis=1)
+                    means = self.model[id_].means_.reshape([-1])
+                    stds = np.sqrt(self.model[id_].covariances_).reshape([-1])
+                    std_t = stds[p_argmax]
+                    mean_t = means[p_argmax]
+
+                    u = np.clip(u, -1, 1)
+                    tmp = u * 4 * std_t + mean_t
+                                        
+                    for idx,val in enumerate(tmp):
+                        if (val < info["min"]) | (val > info['max']):
+                            invalid_ids.append(idx)
+                    
+                    #if id_ in self.non_categorical_columns:
+                    #    tmp = np.round(tmp)
+                    
+                    data_t[:, id_] = tmp
+                    
+                    st += 1 + np.sum(components) # Increment for next itteration
 
                 else:
                   u = data[:, st]
                   u = (u + 1) / 2
                   u = np.clip(u, 0, 1)
                   u = u * (info['max'] - info['min']) + info['min']
-                  if id_ in self.non_categorical_columns:
-                    data_t[:, id_] = np.round(u)
-                  else: data_t[:, id_] = u
+                  #if id_ in self.non_categorical_columns:
+                  #  data_t[:, id_] = np.round(u)
+                  data_t[:, id_] = u
 
                   st += 1
 
