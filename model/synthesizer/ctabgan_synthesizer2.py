@@ -8,6 +8,7 @@ from torch.nn import functional as F
 from torch.nn import (Dropout, LeakyReLU, Linear, Module, ReLU, Sequential,
 Conv2d, ConvTranspose2d, Sigmoid, init, BCELoss, CrossEntropyLoss,SmoothL1Loss,LayerNorm)
 from model.synthesizer.transformer2 import ImageTransformer,DataTransformer
+
 from model.privacy_utils.rdp_accountant import compute_rdp, get_privacy_spent
 from tqdm import tqdm
 
@@ -70,6 +71,7 @@ def apply_activate(data, output_info):
     return torch.cat(data_t, dim=1)
 
 
+
 def random_choice_prob_index_sampling(probs,col_idx):
     option_list = []
     for i in col_idx:
@@ -113,9 +115,6 @@ class Cond(object):
 
                 st += output_size
                 
-                    
-
-            
         self.interval = []
         self.n_col = 0  
         self.n_opt = 0  
@@ -379,15 +378,15 @@ class CTABGANSynthesizer:
 
     def fit(self, train_data=pd.DataFrame, 
             epochs = 150,
-            categorical=[], mixed={}, general=[], non_categorical=[], type={}):
+            categorical=[], mixed={}, general=[], type={}):
 
 
-        self.transformer = DataTransformer(train_data=train_data, categorical_list=categorical, mixed_dict=mixed, general_list=general, non_categorical_list=non_categorical)
-        self.transformer.fit() 
+        self.transformer = DataTransformer(train_data=train_data, categorical_list=categorical, mixed_dict=mixed, general_list=general)
+       
         train_data = self.transformer.transform(train_data)
-        data_sampler = Sampler(train_data, self.transformer.output_info)
-        data_dim = self.transformer.output_dim
-        self.cond_generator = Cond(train_data, self.transformer.output_info)
+        data_sampler = Sampler(train_data, self.transformer.get_output_info())
+        data_dim = self.transformer.get_output_dim()
+        self.cond_generator = Cond(train_data, self.transformer.get_output_info())
         		
         sides = [4, 8, 16, 24, 32, 64] #TODO: this coulc be made faster and computaionally faster (use math instead of this)
         col_size_d = data_dim + self.cond_generator.n_opt #TODO: what happens here why datafim + n_opt
@@ -418,13 +417,7 @@ class CTABGANSynthesizer:
         optimizerC= None
 
         target_index = None #TODO: remove this when finding solution to this
-        """
-        if target_index != None:
-            st_ed= get_st_ed(target_index,self.transformer.output_info)
-            classifier = Classifier(data_dim,self.class_dim,st_ed).to(self.device)
-            optimizerC = optim.Adam(classifier.parameters(),**optimizer_params)
         
-        """
         self.generator.apply(weights_init)
         discriminator.apply(weights_init)
 
@@ -460,7 +453,7 @@ class CTABGANSynthesizer:
                     
                     fake = self.generator(noisez)
                     faket = self.Gtransformer.inverse_transform(fake)
-                    fakeact = apply_activate(faket, self.transformer.output_info)
+                    fakeact = apply_activate(faket, self.transformer.get_output_info())
                     
                     fake_cat = torch.cat([fakeact, c], dim=1)
                     real_cat = torch.cat([real, c_perm], dim=1)
@@ -503,14 +496,14 @@ class CTABGANSynthesizer:
 
                 fake = self.generator(noisez)
                 faket = self.Gtransformer.inverse_transform(fake)
-                fakeact = apply_activate(faket, self.transformer.output_info)
+                fakeact = apply_activate(faket, self.transformer.get_output_info())
 
                 fake_cat = torch.cat([fakeact, c], dim=1) 
                 fake_cat = self.Dtransformer.transform(fake_cat)
                     
                 y_fake,info_fake = discriminator(fake_cat)
                 
-                cross_entropy = cond_loss(faket, self.transformer.output_info, c, m)
+                cross_entropy = cond_loss(faket, self.transformer.get_output_info(), c, m)
 
                 _,info_real = discriminator(real_cat_d)
                 
@@ -571,7 +564,7 @@ class CTABGANSynthesizer:
         
         self.generator.eval()
 
-        output_info = self.transformer.output_info
+        output_info = self.transformer.get_output_info()
         steps = n // self.batch_size + 1
         
         data = []

@@ -5,20 +5,19 @@ from sklearn import model_selection
 
 class DataPrep(object):
   
-    def __init__(self, raw_df: pd.DataFrame, categorical: list, log:list, mixed:dict, general:list, non_categorical:list, integer:list, type:dict, test_ratio:float):
+    def __init__(self, raw_df: pd.DataFrame, categorical: list, log:list, mixed:dict, general:list, integer:list, type:dict, test_ratio:float):
         
-        ty = raw_df.dtypes
+        
         self.categorical_columns = categorical
         self.log_columns = log
         self.mixed_columns = mixed
         self.general_columns = general
-        self.non_categorical_columns = non_categorical
+
         self.integer_columns = integer
         self.column_types = dict()
         self.column_types["categorical"] = []
         self.column_types["mixed"] = {}
         self.column_types["general"] = []
-        self.column_types["non_categorical"] = []
         self.lower_bounds = {}
         self.label_encoder_list = []
         
@@ -67,8 +66,6 @@ class DataPrep(object):
                 if column in self.general_columns:
                     self.column_types["general"].append(column_index)
             
-                if column in self.non_categorical_columns:
-                    self.column_types["non_categorical"].append(column_index)
             
             elif column in self.mixed_columns:
                 self.column_types["mixed"][column_index] = self.mixed_columns[column]
@@ -93,18 +90,6 @@ class DataPrep(object):
         log_columns_numpy = data_pd[self.log_columns].values
         log_columns_numpy = np.exp(log_columns_numpy) - self.lower_transform_bound
         data_pd[self.log_columns] = log_columns_numpy
-        """
-        if self.log_columns:
-            for i in df:
-                if i in self.log_columns:
-                    lower_bound = self.lower_bounds[i]
-                    if lower_bound>0:
-                        df[i] = df[i].apply(lambda x: np.exp(x)) 
-                    elif lower_bound==0:
-                        df[i] = df[i].apply(lambda x: np.ceil(np.exp(x)-eps) if (np.exp(x)-eps) < 0 else (np.exp(x)-eps))
-                    else: 
-                        df[i] = df[i].apply(lambda x: np.exp(x)-eps+lower_bound)
-        """
         
         
         if self.integer_columns:

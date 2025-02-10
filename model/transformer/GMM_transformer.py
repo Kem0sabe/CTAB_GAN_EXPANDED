@@ -1,0 +1,115 @@
+import numpy as np
+import pandas as pd
+from sklearn.mixture import BayesianGaussianMixture
+from model.transformer.Column_transformer import Column_transformer
+class GMM_transformer(Column_transformer):
+    def __init__(self, column,n_clusters=10,eps=0.005):
+        super().__init__()
+        self.n_clusters = n_clusters
+        self.eps = eps
+        self.min = column.min()
+        self.max = column.max()
+
+
+    def fit(self, data_col):
+        gm = BayesianGaussianMixture(
+                n_components = self.n_clusters, 
+                weight_concentration_prior_type='dirichlet_process',
+                weight_concentration_prior=0.001, 
+                max_iter=100,n_init=1, random_state=42)
+        gm.fit(data_col.reshape([-1, 1]))
+        mode_freq = (pd.Series(gm.predict(data_col.reshape([-1, 1]))).value_counts().keys())
+        
+        old_comp = gm.weights_ > self.eps
+
+        # The final components are the ones that are frequent and have a weigh greater than the eps cutoff
+        self.components = [(i in mode_freq) & old_comp[i] for i in range(self.n_clusters)]
+        self.output_info = [(1, 'tanh','no_g'), (np.sum(self.components), 'softmax',None)]
+        self.output_dim = 1 + np.sum(self.components)
+        self.model = gm
+        
+
+    def transform(self, data_col):
+        data_col = data_col.reshape([-1, 1])
+        means = self.model.means_.reshape((1, self.n_clusters))
+        stds = np.sqrt(self.model.covariances_).reshape((1, self.n_clusters))
+        features = np.empty(shape=(len(data_col),self.n_clusters))
+        """
+        if ispositive == True:
+            if id_ in positive_list:
+                features = np.abs(data_col - means) / (4 * stds)
+        else:
+        """
+        features = (data_col - means) / (4 * stds)
+
+        probs = self.model.predict_proba(data_col.reshape([-1, 1]))
+        n_opts = sum(self.components)
+        features = features[:, self.components]
+        probs = probs[:, self.components]
+
+        opt_sel = np.zeros(len(data_col), dtype='int')
+        for i in range(len(data_col)):
+            pp = probs[i] + 1e-6
+            pp = pp / sum(pp)
+            opt_sel[i] = np.random.choice(np.arange(n_opts), p=pp)
+
+        idx = np.arange((len(features)))
+        features = features[idx, opt_sel].reshape([-1, 1])
+        features = np.clip(features, -.99, .99) 
+        probs_onehot = np.zeros_like(probs)
+        probs_onehot[np.arange(len(probs)), opt_sel] = 1
+
+        re_ordered_phot = np.zeros_like(probs_onehot)
+        
+        col_sums = probs_onehot.sum(axis=0)
+        
+
+        n = probs_onehot.shape[1]
+        largest_indices = np.argsort(-1*col_sums)[:n]
+        self.ordering = largest_indices
+        for id,val in enumerate(largest_indices):
+            re_ordered_phot[:,id] = probs_onehot[:,val]
+    
+        
+        return np.concatenate([features, re_ordered_phot], axis=1)
+        
+
+    def inverse_transform(self, data,st):
+        u = data[:, st]
+        v = data[:, st + 1:st + 1 + np.sum(self.components)]
+      
+        v_re_ordered = np.zeros_like(v)
+
+        for id,val in enumerate(self.ordering):
+            v_re_ordered[:,val] = v[:,id]
+        
+        v = v_re_ordered
+
+        u = np.clip(u, -1, 1)
+        v_t = np.ones((data.shape[0], self.n_clusters)) * -100
+        v_t[:, self.components] = v
+        v = v_t
+        
+        means = self.model.means_.reshape([-1])
+        stds = np.sqrt(self.model.covariances_).reshape([-1])
+        p_argmax = np.argmax(v, axis=1)
+        std_t = stds[p_argmax]
+        mean_t = means[p_argmax]
+        tmp = u * 4 * std_t + mean_t
+                        
+        #for idx,val in enumerate(tmp):
+        #    if (val < self.min) | (val > self.max):
+        #        invalid_ids.append(idx)
+        #invalid_ids = np.where((tmp < self.min) | (tmp > self.max))[0].tolist()
+        
+        #if id_ in self.non_categorical_columns:
+            #tmp = np.round(tmp)
+        
+        
+        
+        new_st = st + 1 + np.sum(self.components)
+        return tmp, new_st, []
+        
+        
+        
+
