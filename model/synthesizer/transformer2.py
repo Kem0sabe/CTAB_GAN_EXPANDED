@@ -74,12 +74,40 @@ class DataTransformer():
         all_invalid_ids = np.unique(all_invalid_ids)
         data_t = np.delete(data_t, list(all_invalid_ids), axis=0)
         return data_t, len(all_invalid_ids)
+
+
+    def inverse_transform_static(self,data, transformer, device,n_clusters=10):
+        general_columns = []
+        transformers = transformer.get_transformers()
+        data_t = torch.zeros(len(data), len(transformers), device=device)
+        all_invalid_ids = []
+        st = 0
+        for id_, transformer in enumerate(transformers):
+            new_data, st, invalid_ids = transformer.inverse_transform_static(data, transformer, st,device,n_clusters)
+            data_t[:,id_] = new_data
+            all_invalid_ids += invalid_ids
+
+        mask = torch.ones(len(data_t), dtype=torch.bool, device=device)
+        mask[list(all_invalid_ids)] = False
+
+
+        data_t = data_t[mask]
+
+        return data_t, len(all_invalid_ids)
+
+    def get_transformers(self): # TODO: should be removed if possible with the inverse backporpagation
+        return self.transformers
          
     def get_output_info(self):
         return [transformer.get_output_info() for transformer in self.transformers]
 
     def get_output_dim(self):
         return sum([transformer.get_output_dim() for transformer in self.transformers])
+
+    def get_components(self): #TODO: check if needed
+        return [transformer.get_components() for transformer in self.transformers]
+
+   
             
 
     
