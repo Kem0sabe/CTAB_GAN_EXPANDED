@@ -101,27 +101,27 @@ class GMM_transformer(Column_transformer):
         new_st = st + 1 + np.sum(self.components)
         return tmp, new_st, []
 
-    def inverse_transform_static(self, data, transformer,st,device2,n_clusters=10):
+    def inverse_transform_static(self, data, transformer,st,device,n_clusters=10):
         components = transformer.get_component()
         order = transformer.get_ordering()
         model = transformer.get_model()
 
-        components = torch.tensor(components, dtype=torch.bool).to(device2)
+        components = torch.tensor(components, dtype=torch.bool).to(device)
         u = data[:, st]  # Then tahn component for "concatenating" the different components
         v = data[:, st + 1:st + 1 + torch.sum(components).item()]  # The different components
         
 
         # Ensure order is a tensor
-        order = torch.tensor(order, device=device2)
+        order = torch.tensor(order, device=device)
         v = v[:, torch.argsort(order)]
         
-        v_t = torch.ones((data.shape[0], n_clusters), device=device2) * -float('inf')
+        v_t = torch.ones((data.shape[0], n_clusters), device=device) * -float('inf')
         v_t[:, components] = v
         v = v_t
 
         p_argmax = torch.argmax(v, dim=1)
-        means = torch.tensor(model.means_.reshape([-1]), device=device2)
-        stds = torch.tensor(model.covariances_.reshape([-1]), device=device2)
+        means = torch.tensor(model.means_.reshape([-1]), device=device)
+        stds = torch.tensor(model.covariances_.reshape([-1]), device=device)
         stds = torch.sqrt(stds)    
         std_t = stds[p_argmax]
         mean_t = means[p_argmax]

@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import torch
 from sklearn.mixture import BayesianGaussianMixture
 from model.transformer.Column_transformer import Column_transformer
 
@@ -174,6 +175,47 @@ class Mixed_data_transformer(Column_transformer):
         invalid_ids = np.where((result < self.min) | (result > self.max))[0].tolist()
         
         new_st = 1 + np.sum(self.components) + len(self.modals)
+        return result, new_st, invalid_ids
+
+
+    def inverse_transform_static(self, data, transformer, st, device, n_clusters=10):
+        components = transformer.get_component()
+        order = transformer.get_ordering()
+        model = transformer.get_model()
+        modals = transformer.modals
+
+        components = torch.tensor(components, dtype=torch.bool).to(device)
+        u = data[:, st]
+        full_v = data[:, (st + 1):(st + 1) + len(modals) + torch.sum(components).item()]
+
+        # Ensure order is a tensor
+        order = torch.tensor(order, device=device)
+        full_v = full_v[:, torch.argsort(order)]
+
+        mixed_v = full_v[:, :len(modals)]
+        v = full_v[:, -torch.sum(components).item():]
+
+        u = torch.clamp(u, -1, 1)
+        v_t = torch.ones((data.shape[0], n_clusters), device=device) * -float('inf')
+        v_t[:, components] = v
+        v = torch.cat([mixed_v, v_t], dim=1)
+
+        means = torch.tensor(model[1].means_.reshape([-1]), device=device)
+        stds = torch.sqrt(torch.tensor(model[1].covariances_.reshape([-1]), device=device))
+        p_argmax = torch.argmax(v, dim=1)
+
+        result = torch.zeros_like(u)
+        for idx in range(len(data)):
+            if p_argmax[idx] < len(modals):
+                argmax_value = p_argmax[idx]
+                result[idx] = float(list(map(modals.__getitem__, [argmax_value]))[0])
+            else:
+                std_t = stds[(p_argmax[idx] - len(modals))]
+                mean_t = means[(p_argmax[idx] - len(modals))]
+                result[idx] = u[idx] * 4 * std_t + mean_t
+
+        invalid_ids = torch.where((result < transformer.min) | (result > transformer.max))[0].tolist()
+        new_st = 1 + torch.sum(components).item() + len(modals)
         return result, new_st, invalid_ids
 
         

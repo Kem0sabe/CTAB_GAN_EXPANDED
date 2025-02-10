@@ -32,6 +32,14 @@ class Gaussian_transformer(Column_transformer):
         #data_t[:, id_] = np.round(u)
         new_st = st + 1
         return u, new_st, []
+
+    def inverse_transform_static(self, data, transformer, st, device, n_clusters=10): #TODO: remove n cluster when finding out how to handle it
+        u = data[:, st]
+        u = (u + 1) / 2
+        u = torch.clamp(u, 0, 1)
+        u = u * (transformer.max - transformer.min) + transformer.min
+        new_st = st + 1
+        return u, new_st, []
         
 
         
