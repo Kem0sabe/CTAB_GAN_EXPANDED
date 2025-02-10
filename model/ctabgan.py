@@ -19,7 +19,7 @@ class CTABGAN():
                  categorical_columns = [ 'workclass', 'education', 'marital-status', 'occupation', 'relationship', 'race', 'gender', 'native-country', 'income'], 
                  log_columns = [],
                  mixed_columns= {'capital-loss':[0.0],'capital-gain':[0.0]},
-                 general_columns = ["age"],
+                 gaussian_columns = ["age"],
                  non_categorical_columns = [],
                  integer_columns = ['age', 'fnlwgt','capital-gain', 'capital-loss','hours-per-week'],
                  problem_type= {"Classification": "income"}):
@@ -32,7 +32,7 @@ class CTABGAN():
         self.categorical_columns = categorical_columns
         self.log_columns = log_columns
         self.mixed_columns = mixed_columns
-        self.general_columns = general_columns
+        self.gaussian_columns = gaussian_columns
         # we remove non_categorical option
         # self.non_categorical_columns = non_categorical_columns
         self.integer_columns = integer_columns
@@ -41,10 +41,10 @@ class CTABGAN():
     def fit(self,epochs = 150):
         
         start_time = time.time()
-        self.data_prep = DataPrep(self.raw_df,self.categorical_columns,self.log_columns,self.mixed_columns,self.general_columns,self.integer_columns,self.problem_type,self.test_ratio)
+        self.data_prep = DataPrep(self.raw_df,self.categorical_columns,self.log_columns,self.mixed_columns,self.gaussian_columns,self.integer_columns,self.problem_type,self.test_ratio)
     
         self.synthesizer.fit(train_data=self.data_prep.df, epochs=epochs,categorical = self.data_prep.column_types["categorical"], mixed = self.data_prep.column_types["mixed"],
-        general = self.data_prep.column_types["general"], type=self.problem_type)
+        gaussian = self.data_prep.column_types["gaussian"], type=self.problem_type)
         return
         end_time = time.time()
         print('Finished training in',end_time-start_time," seconds.")

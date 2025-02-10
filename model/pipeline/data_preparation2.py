@@ -5,19 +5,19 @@ from sklearn import model_selection
 
 class DataPrep(object):
   
-    def __init__(self, raw_df: pd.DataFrame, categorical: list, log:list, mixed:dict, general:list, integer:list, type:dict, test_ratio:float):
+    def __init__(self, raw_df: pd.DataFrame, categorical: list, log:list, mixed:dict, gaussian:list, integer:list, type:dict, test_ratio:float):
         
         
         self.categorical_columns = categorical
         self.log_columns = log
         self.mixed_columns = mixed
-        self.general_columns = general
+        self.gaussian_columns = gaussian
 
         self.integer_columns = integer
         self.column_types = dict()
         self.column_types["categorical"] = []
         self.column_types["mixed"] = {}
-        self.column_types["general"] = []
+        self.column_types["gaussian"] = []
         self.lower_bounds = {}
         self.label_encoder_list = []
         
@@ -63,15 +63,15 @@ class DataPrep(object):
                 self.label_encoder_list.append(current_label_encoder)
                 self.column_types["categorical"].append(column_index)
 
-                if column in self.general_columns:
-                    self.column_types["general"].append(column_index)
+                if column in self.gaussian_columns:
+                    self.column_types["gaussian"].append(column_index)
             
             
             elif column in self.mixed_columns:
                 self.column_types["mixed"][column_index] = self.mixed_columns[column]
             
-            elif column in self.general_columns:
-                self.column_types["general"].append(column_index)
+            elif column in self.gaussian_columns:
+                self.column_types["gaussian"].append(column_index)
             
 
         super().__init__()

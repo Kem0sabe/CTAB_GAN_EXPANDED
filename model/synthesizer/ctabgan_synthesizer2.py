@@ -401,10 +401,10 @@ class CTABGANSynthesizer:
 
     def fit(self, train_data=pd.DataFrame, 
             epochs = 150,
-            categorical=[], mixed={}, general=[], type={}):
+            categorical=[], mixed={}, gaussian=[], type={}):
 
 
-        self.transformer = DataTransformer(train_data=train_data, categorical_list=categorical, mixed_dict=mixed, general_list=general)
+        self.transformer = DataTransformer(train_data=train_data, categorical_list=categorical, mixed_dict=mixed, gaussian_list=gaussian)
        
         train_data = self.transformer.transform(train_data)
         data_sampler = Sampler(train_data, self.transformer.get_output_info())

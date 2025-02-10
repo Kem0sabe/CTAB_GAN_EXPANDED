@@ -12,14 +12,14 @@ from model.transformer.Gaussian_transformer import Gaussian_transformer
 
 class DataTransformer():
     
-    def __init__(self, train_data=pd.DataFrame, categorical_list=[], mixed_dict={}, general_list=[], n_clusters=10, eps=0.005):
+    def __init__(self, train_data=pd.DataFrame, categorical_list=[], mixed_dict={}, gaussian_list=[], n_clusters=10, eps=0.005):
         self.meta = None
         self.n_clusters = n_clusters
         self.eps = eps
         self.train_data = train_data
         self.categorical_columns= categorical_list
         self.mixed_columns= mixed_dict
-        self.general_columns = general_list
+        self.gaussian_columns = gaussian_list
 
         self.fit()
         
@@ -37,7 +37,7 @@ class DataTransformer():
                 transformer = Categorical_transformer(column)
             elif index in self.mixed_columns.keys():
                 transformer = Mixed_data_transformer(column,self.mixed_columns[index])
-            elif index in self.general_columns:
+            elif index in self.gaussian_columns:
                 transformer = Gaussian_transformer(column)
             else:
                 transformer = GMM_transformer(column)
@@ -77,7 +77,7 @@ class DataTransformer():
 
 
     def inverse_transform_static(self,data, transformer, device,n_clusters=10):
-        general_columns = []
+        gaussian_columns = []
         transformers = transformer.get_transformers()
         data_t = torch.zeros(len(data), len(transformers), device=device)
         all_invalid_ids = []
