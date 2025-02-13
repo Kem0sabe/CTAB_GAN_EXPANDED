@@ -10,6 +10,8 @@ class GMM_transformer(Column_transformer):
         self.eps = eps
         self.min = column.min()
         self.max = column.max()
+        
+        self.fit(column.to_numpy())
 
 
     def fit(self, data_col):

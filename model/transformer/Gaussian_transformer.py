@@ -6,6 +6,8 @@ class Gaussian_transformer(Column_transformer):
         self.min = column.min()
         self.max = column.max()
 
+        self.fit(column.to_numpy())
+
     def fit(self, data_col):
         self.model = None # Consider if we should explicit decleare model none and components (mainly for readability)
         self.components = None

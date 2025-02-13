@@ -14,6 +14,8 @@ class Mixed_data_transformer(Column_transformer):
         self.min = column.min()
         self.max = column.max()
 
+        self.fit(column.to_numpy())
+
     def fit(self, data_col):
 
         gm1 = BayesianGaussianMixture(
@@ -50,6 +52,7 @@ class Mixed_data_transformer(Column_transformer):
         self.output_dim = 1 + np.sum(self.components) + len(self.modals)
 
     def transform(self, data_col):
+        data_size = len(data_col)
         means_0 = self.model[0].means_.reshape([-1])
         stds_0 = np.sqrt(self.model[0].covariances_).reshape([-1])
 
@@ -66,6 +69,7 @@ class Mixed_data_transformer(Column_transformer):
                 zero_std_list.append(index_min)
             else: continue
 
+
         for idx in zero_std_list:
             means_needed.append(means_0[idx])
             stds_needed.append(stds_0[idx])
@@ -80,27 +84,27 @@ class Mixed_data_transformer(Column_transformer):
         if -9999999 in self.modals:
             mode_vals.append(0)
         
-        data_col = data_col.reshape([-1, 1])
+        #data_col = data_col.reshape([-1, 1])
         filter_arr = self.filter_arr
-        data_col = data_col[filter_arr]
+        data_filter_col = data_col[filter_arr].reshape([-1, 1])
         
         means = self.model[1].means_.reshape((1, self.n_clusters))
         stds = np.sqrt(self.model[1].covariances_).reshape((1, self.n_clusters))
-        features = np.empty(shape=(len(data_col),self.n_clusters))
+        features = np.empty(shape=(len(data_filter_col),self.n_clusters))
         #if ispositive == True:
         #    if id_ in positive_list:
         #        features = np.abs(data_col - means) / (4 * stds)
         #else:
-        features = (data_col - means) / (4 * stds)
+        features = (data_filter_col - means) / (4 * stds)
 
-        probs = self.model[1].predict_proba(data_col.reshape([-1, 1]))
+        probs = self.model[1].predict_proba(data_filter_col.reshape([-1, 1]))
 
         n_opts = sum(self.components) 
         features = features[:, self.components]
         probs = probs[:, self.components]
         
-        opt_sel = np.zeros(len(data_col), dtype='int')
-        for i in range(len(data_col)):
+        opt_sel = np.zeros(len(data_filter_col), dtype='int')
+        for i in range(len(data_filter_col)):
             pp = probs[i] + 1e-6
             pp = pp / sum(pp)
             opt_sel[i] = np.random.choice(np.arange(n_opts), p=pp)
@@ -109,7 +113,7 @@ class Mixed_data_transformer(Column_transformer):
         features = np.clip(features, -.99, .99)
         probs_onehot = np.zeros_like(probs)
         probs_onehot[np.arange(len(probs)), opt_sel] = 1
-        extra_bits = np.zeros([len(data_col), len(self.modals)])
+        extra_bits = np.zeros([len(data_filter_col), len(self.modals)])
         temp_probs_onehot = np.concatenate([extra_bits,probs_onehot], axis = 1)
         final = np.zeros([len(data_col), 1 + probs_onehot.shape[1] + len(self.modals)])
         features_curser = 0
