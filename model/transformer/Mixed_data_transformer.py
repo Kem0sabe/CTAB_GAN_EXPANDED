@@ -53,9 +53,12 @@ class Mixed_data_transformer(Column_transformer):
 
     def transform(self, data_col):
         data_size = len(data_col)
+        
+        """ TODO: is this needed? all this code is used to set the mode_vals, but it is not used for categorical
         means_0 = self.model[0].means_.reshape([-1])
         stds_0 = np.sqrt(self.model[0].covariances_).reshape([-1])
 
+        
         zero_std_list = []
         means_needed = []
         stds_needed = []
@@ -84,7 +87,8 @@ class Mixed_data_transformer(Column_transformer):
         if -9999999 in self.modals:
             mode_vals.append(0)
         
-        #data_col = data_col.reshape([-1, 1])
+        """
+
         filter_arr = self.filter_arr
         data_filter_col = data_col[filter_arr].reshape([-1, 1])
         
@@ -120,7 +124,7 @@ class Mixed_data_transformer(Column_transformer):
         for idx, val in enumerate(data_col): #TODO: This should be as data_col instead, since now we are using the original data, this might fix the pr
             if val in self.modals:
                 category_ = list(map(self.modals.index, [val]))[0]
-                final[idx, 0] = mode_vals[category_]
+                final[idx, 0] = 0 #mode_vals[category_]
                 final[idx, (category_+1)] = 1
             
             else:
@@ -161,6 +165,7 @@ class Mixed_data_transformer(Column_transformer):
         v = np.concatenate([mixed_v,v_t], axis=1)
 
         
+
         means = self.model[1].means_.reshape([-1]) 
         stds = np.sqrt(self.model[1].covariances_).reshape([-1]) 
         p_argmax = np.argmax(v, axis=1)
