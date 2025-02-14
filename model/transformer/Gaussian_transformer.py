@@ -1,3 +1,5 @@
+import numpy as np
+import torch
 from model.transformer.Column_transformer import Column_transformer
 
 class Gaussian_transformer(Column_transformer):
@@ -15,7 +17,7 @@ class Gaussian_transformer(Column_transformer):
         self.output_dim = 1
 
     def transform(self, data_col):
-        self.ordering.append(None)
+       
                   
         #if id_ in self.non_categorical_columns: #Wtf is this?
         #    info['min'] = -1e-3
