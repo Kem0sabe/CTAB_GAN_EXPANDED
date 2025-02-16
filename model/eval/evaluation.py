@@ -7,7 +7,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.linear_model import LogisticRegression, LinearRegression, Ridge, Lasso, BayesianRidge
 from sklearn import svm,tree
 from sklearn.ensemble import RandomForestClassifier
-from dython.nominal import compute_associations
+from dython.nominal import associations
 from scipy.stats import wasserstein_distance
 from scipy.spatial import distance
 import warnings
@@ -61,7 +61,8 @@ def supervised_model_training(x_train, y_train, x_test,
     return [mse, evs, r2_score]
 
 
-def get_utility_metrics(real_path,fake_paths,scaler="MinMax",type={"Classification":["lr","dt","rf","mlp"]},test_ratio=.20):
+#TODO: Fix to work with pandas df instead of path
+def get_utility_metrics(data_real,fake_paths,scaler="MinMax",type={"Classification":["lr","dt","rf","mlp"]},test_ratio=.20):
 
     data_real = pd.read_csv(real_path).to_numpy()
     data_dim = data_real.shape[1]
@@ -125,19 +126,19 @@ def get_utility_metrics(real_path,fake_paths,scaler="MinMax",type={"Classificati
 
     return diff_results
 
-def stat_sim(real_path,fake_path,cat_cols=None):
+def stat_sim(real,fake,cat_cols=None):
     
     Stat_dict={}
     
-    real = pd.read_csv(real_path)
-    fake = pd.read_csv(fake_path)
+    #real = pd.read_csv(real_path)
+    #fake = pd.read_csv(fake_path)
 
     really = real.copy()
     fakey = fake.copy()
 
-    real_corr = compute_associations(real, nominal_columns=cat_cols)
+    real_corr = associations(real, compute_only=True)["corr"]
 
-    fake_corr = compute_associations(fake, nominal_columns=cat_cols)
+    fake_corr = associations(fake, compute_only=True)["corr"]
 
     corr_dist = np.linalg.norm(real_corr - fake_corr)
     
@@ -179,10 +180,10 @@ def stat_sim(real_path,fake_path,cat_cols=None):
 
     return [np.mean(num_stat),np.mean(cat_stat),corr_dist]
 
-def privacy_metrics(real_path,fake_path,data_percent=15):
+def privacy_metrics(real,fake,data_percent=15):
     
-    real = pd.read_csv(real_path).drop_duplicates(keep=False)
-    fake = pd.read_csv(fake_path).drop_duplicates(keep=False)
+    #real = pd.read_csv(real_path).drop_duplicates(keep=False)
+    #fake = pd.read_csv(fake_path).drop_duplicates(keep=False)
 
     real_refined = real.sample(n=int(len(real)*(.01*data_percent)), random_state=42).to_numpy()
     fake_refined = fake.sample(n=int(len(fake)*(.01*data_percent)), random_state=42).to_numpy()
