@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.mixture import BayesianGaussianMixture
-from model.transformer.Column_transformer import Column_transformer
+from model.transformer.column_transformers.column_transformer import Column_transformer
 
 class Mixed_data_transformer(Column_transformer):
 

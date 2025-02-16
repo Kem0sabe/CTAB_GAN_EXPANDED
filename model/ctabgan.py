@@ -8,7 +8,6 @@ from model.pipeline.data_preparation import DataPrep
 from model.pipeline.Column_assigner import Column_assigner, Transform_type
 from model.synthesizer.ctabgan_synthesizer import CTABGANSynthesizer
 
-from model.transformer.Categorical_transformer import Categorical_transformer
 
 import warnings
 import numpy as np
