@@ -13,6 +13,7 @@ class Mixed_data_transformer(Column_transformer):
         self.eps = eps
         self.min = column.min()
         self.max = column.max()
+        self.nan_replacement = -9999999
 
         self.fit(column.to_numpy())
 
@@ -29,10 +30,12 @@ class Mixed_data_transformer(Column_transformer):
             weight_concentration_prior=0.001, max_iter=100,
             n_init=1,random_state=42)
 
-        gm1.fit(data_col.reshape([-1, 1]))
+        if np.nan in self.modals: self.modals[self.modals.index(np.nan)] = self.nan_replacement
+        data_col = np.where(np.isnan(data_col), self.nan_replacement, data_col)
+        #gm1.fit(data_col.reshape([-1, 1]))
 
         self.filter_arr = ~np.isin(data_col, self.modals) # Find the indices of elements in data[:, id_] that are not in modal (aka that are not in the normal continuous data)
-        data_continuous = data_col[self.filter_arr].reshape([-1, 1]) # The observations where we have continuous data, excluding the modal/categorical data
+        data_continuous = self.get_continuous_data(data_col, self.filter_arr) # The observations where we have continuous data, excluding the modal/categorical data
         gm2.fit(data_continuous)
 
         component_assignments = gm2.predict(data_continuous) # Assigns each observation to a component
@@ -40,7 +43,7 @@ class Mixed_data_transformer(Column_transformer):
         mode_freq = pd.Series(component_assignments).value_counts().keys() # Calculate the frequency of each component assignment
 
         # self.filter_arr.append(filter_arr)
-        self.model = (gm1,gm2)
+        self.model = gm2
        
         old_comp = gm2.weights_ > self.eps # To prevent the model from overfitting? removes components that are less than eps
           
@@ -54,46 +57,13 @@ class Mixed_data_transformer(Column_transformer):
     def transform(self, data_col):
         data_size = len(data_col)
         
-        """ TODO: is this needed? all this code is used to set the mode_vals, but it is not used for categorical
-        means_0 = self.model[0].means_.reshape([-1])
-        stds_0 = np.sqrt(self.model[0].covariances_).reshape([-1])
 
-        
-        zero_std_list = []
-        means_needed = []
-        stds_needed = []
-
-        for mode in self.modals:
-            if mode!=-9999999:
-                dist = []
-                for idx,val in enumerate(list(means_0.flatten())):
-                    dist.append(abs(mode-val))
-                index_min = np.argmin(np.array(dist))
-                zero_std_list.append(index_min)
-            else: continue
-
-
-        for idx in zero_std_list:
-            means_needed.append(means_0[idx])
-            stds_needed.append(stds_0[idx])
-        
-        
-        mode_vals = []
-
-        for i,j,k in zip(self.modals,means_needed,stds_needed):
-            this_val  = np.abs(i - j) / (4*k)
-            mode_vals.append(this_val)
-        
-        if -9999999 in self.modals:
-            mode_vals.append(0)
-        
-        """
-
+        data_col = np.where(np.isnan(data_col), self.nan_replacement, data_col)
         filter_arr = self.filter_arr
-        data_filter_col = data_col[filter_arr].reshape([-1, 1])
+        data_filter_col = self.get_continuous_data(data_col, self.filter_arr)
         
-        means = self.model[1].means_.reshape((1, self.n_clusters))
-        stds = np.sqrt(self.model[1].covariances_).reshape((1, self.n_clusters))
+        means = self.model.means_.reshape((1, self.n_clusters))
+        stds = np.sqrt(self.model.covariances_).reshape((1, self.n_clusters))
         features = np.empty(shape=(len(data_filter_col),self.n_clusters))
         #if ispositive == True:
         #    if id_ in positive_list:
@@ -101,7 +71,7 @@ class Mixed_data_transformer(Column_transformer):
         #else:
         features = (data_filter_col - means) / (4 * stds)
 
-        probs = self.model[1].predict_proba(data_filter_col.reshape([-1, 1]))
+        probs = self.model.predict_proba(data_filter_col.reshape([-1, 1]))
 
         n_opts = sum(self.components) 
         features = features[:, self.components]
@@ -166,8 +136,8 @@ class Mixed_data_transformer(Column_transformer):
 
         
 
-        means = self.model[1].means_.reshape([-1]) 
-        stds = np.sqrt(self.model[1].covariances_).reshape([-1]) 
+        means = self.model.means_.reshape([-1]) 
+        stds = np.sqrt(self.model.covariances_).reshape([-1]) 
         p_argmax = np.argmax(v, axis=1)
 
         result = np.zeros_like(u)
@@ -181,10 +151,16 @@ class Mixed_data_transformer(Column_transformer):
                 mean_t = means[(p_argmax[idx]-len(self.modals))]
                 result[idx] = u[idx] * 4 * std_t + mean_t
         
+        result[result == self.nan_replacement] = np.nan
         invalid_ids = np.where((result < self.min) | (result > self.max))[0].tolist()
         
         new_st = 1 + np.sum(self.components) + len(self.modals)
         return result, new_st, invalid_ids
+
+
+    def get_continuous_data(self,data_col,filter_arr):
+        data_col = np.where(np.isnan(data_col), self.nan_replacement, data_col)
+        return data_col[filter_arr].reshape([-1, 1])
 
 
     def inverse_transform_static(self, data, transformer, st, device, n_clusters=10):

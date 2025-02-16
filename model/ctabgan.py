@@ -53,7 +53,7 @@ class CTABGAN():
         self.data_prep = DataPrep(self.raw_df, self.categorical_columns, self.log_columns)
 
         self.prepared_data = self.data_prep.preprocesses_transform(self.raw_df)
-        self.prepared_data = self.prepared_data.fillna(-9999999)
+        #self.prepared_data = self.prepared_data.fillna(-9999999)
         
 
 
@@ -72,7 +72,7 @@ class CTABGAN():
 
         sample = self.synthesizer.sample(n, column_index, column_value_index)
         sample = pd.DataFrame(sample, columns=self.prepared_data.columns)
-        sample.replace(-9999999, np.nan, inplace=True)
+        #sample.replace(-9999999, np.nan, inplace=True)
         return self.data_prep.preprocesses_inverse_transform(sample)
         
   
