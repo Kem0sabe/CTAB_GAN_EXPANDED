@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import torch
 from typing import List
+from model.pipeline.data_preparation2 import DataPrep
+
 
 
 from model.transformer.Column_transformer import Column_transformer
@@ -12,37 +14,35 @@ from model.transformer.Gaussian_transformer import Gaussian_transformer
 
 class DataTransformer():
     
-    def __init__(self, train_data=pd.DataFrame, categorical_list=[], mixed_dict={}, gaussian_list=[], n_clusters=10, eps=0.005):
+    def __init__(self, prepared_data, data_prep: DataPrep, categorical_list, mixed_dict, gaussian_list, n_clusters=10, eps=0.005):
         self.meta = None
         self.n_clusters = n_clusters
         self.eps = eps
-        self.train_data = train_data
-        self.categorical_columns= categorical_list
-        self.mixed_columns= mixed_dict
-        self.gaussian_columns = gaussian_list
-
-        self.fit()
+        
+        self.data_prep = data_prep
+       
+       
+        self.transformers = self.setup_transformers(prepared_data,categorical_list, mixed_dict, gaussian_list)
         
     
-    def fit(self):
-        self.transformers = self.setup_transformers()
-        return self.fit_transformers(self.train_data)  
+
     
 
-    def setup_transformers(self) -> List[Column_transformer]: #TODO: add options for clusers and eps and other stuff
+    
+    def get_column_transform(self, data,column, categorical_list, mixed_dict, gaussian_list):
+        if column in categorical_list: return Categorical_transformer(data[column])
+        if column in mixed_dict: return Mixed_data_transformer(data[column],mixed_dict[column])
+        if column in gaussian_list: return Gaussian_transformer(data[column])
+        return GMM_transformer(data[column])  # No type specified by user
+
+
+    def setup_transformers(self,data,categorical_list, mixed_dict, gaussian_list):
         transformers = []
-        for index in range(self.train_data.shape[1]):
-            column = self.train_data.iloc[:,index]
-            if index in self.categorical_columns:
-                transformer = Categorical_transformer(column)
-            elif index in self.mixed_columns.keys():
-                transformer = Mixed_data_transformer(column,self.mixed_columns[index])
-            elif index in self.gaussian_columns:
-                transformer = Gaussian_transformer(column)
-            else:
-                transformer = GMM_transformer(column)
-            transformers.append(transformer)
+        for column in data.columns:
+            column_type = self.get_column_transform(data,column, categorical_list, mixed_dict, gaussian_list)
+            transformers.append(column_type)
         return transformers
+
 
             
     def fit_transformers(self,data):
@@ -57,8 +57,8 @@ class DataTransformer():
        
     def transform(self, data):
         transforms = []
-        for i in range(len(self.transformers)):
-            transformer = self.transformers[i]
+        for i, transformer in enumerate(self.transformers):
+            if transformer is None: continue
             transforms.append(transformer.transform(data.iloc[:,i].to_numpy()))
 
         return np.concatenate(transforms, axis=1)

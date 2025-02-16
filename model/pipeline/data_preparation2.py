@@ -3,115 +3,74 @@ import pandas as pd
 from sklearn import preprocessing
 from sklearn import model_selection
 
+from model.pipeline.Log_preparation import Log_preparation
+from model.pipeline.Categorical_preparation import Categorical_preparation
+
 class DataPrep(object):
   
-    def __init__(self, raw_df: pd.DataFrame, categorical: list, log:list, mixed:dict, general:list, integer:list, type:dict, test_ratio:float):
+    def __init__(self, raw_df: pd.DataFrame, categorical_list, log_list):
         
-        
-        self.categorical_columns = categorical
-        self.log_columns = log
-        self.mixed_columns = mixed
-        self.general_columns = general
-
-        self.integer_columns = integer
-        self.column_types = dict()
-        self.column_types["categorical"] = []
-        self.column_types["mixed"] = {}
-        self.column_types["general"] = []
-        self.lower_bounds = {}
-        self.label_encoder_list = []
         
 
-        self.df = raw_df
-        self.df = self.df.replace(r' ', np.nan)
-       
-        all_columns= set(self.df.columns)
-        irrelevant_missing_columns = set(self.categorical_columns)
-        relevant_missing_columns = list(all_columns - irrelevant_missing_columns)
-        
-        log_columns_numpy = self.df[self.log_columns].values # For faster computation
-        lower_bounds = np.nanmin(log_columns_numpy, axis=0)
-        eps = 1
-        lower_transform_bound = np.where( #TODO:  COuld consider making this transform easier 
-            lower_bounds > 0,
-            0,  
-            np.where(lower_bounds == 0, eps, -lower_bounds + eps)  
-        )
-        log_columns_numpy = np.log(log_columns_numpy + lower_transform_bound)
-        self.lower_bounds = dict(zip(self.log_columns, lower_bounds))
-        self.lower_transform_bound = lower_transform_bound # numpy form
-        self.df[self.log_columns] = log_columns_numpy
+    
 
-        for i in relevant_missing_columns:
-            if self.df[i].isnull().any():
-                self.df[i] = self.df[i].fillna(-9999999)
-                if i not in self.mixed_columns: # why do we drop them if they are log columns? Could be nice to have null values there
-                    self.mixed_columns[i] = []
-                self.mixed_columns[i].append(-9999999)
-        
-        
-        for column_index, column in enumerate(self.df.columns):            
-            if column in self.categorical_columns:        
-                label_encoder = preprocessing.LabelEncoder()
-                self.df[column] = self.df[column].astype(str)
-                label_encoder.fit(self.df[column])
-                current_label_encoder = dict()
-                current_label_encoder['column'] = column
-                current_label_encoder['label_encoder'] = label_encoder
-                transformed_column = label_encoder.transform(self.df[column])
-                self.df[column] = transformed_column
-                self.label_encoder_list.append(current_label_encoder)
-                self.column_types["categorical"].append(column_index)
+      
+        #self.df = self.df.replace(r' ', np.nan) #TODO: what other things should be defaulted to np.nan
+        # TODO: how to handle missing/nan values
 
-                if column in self.general_columns:
-                    self.column_types["general"].append(column_index)
-            
-            
-            elif column in self.mixed_columns:
-                self.column_types["mixed"][column_index] = self.mixed_columns[column]
-            
-            elif column in self.general_columns:
-                self.column_types["general"].append(column_index)
+        
+        self.preprossesers =  self.setup_preprocesses(raw_df,categorical_list, log_list)
+        
             
 
         super().__init__()
+
+    
+    def setup_preprocesses(self, data, categorical_list, log_list):
         
-    def inverse_prep(self, data, eps=1):
+        preprocesses = []
+        for column in data.columns:
+            column_type = self.get_preprocesses_transform(data,column, categorical_list, log_list)
+            preprocesses.append(column_type)
+        return preprocesses
+
+
+    def get_preprocesses_transform(self, data,column, categorical_list, log_list):
+        if column in categorical_list: return Categorical_preparation(data[column])
+        if column in log_list: return Log_preparation(data[column])
+        return None  # No transformation specified
+
+    
+    def preprocesses_transform(self,data):
+        assert len(self.preprossesers) == data.shape[1]
+        data = data.copy()
+        for idx, preprosseser in enumerate(self.preprossesers):
+            if preprosseser is None: continue
+            column = data.iloc[:,idx]
+            data.iloc[:,idx] = preprosseser.transform(column)
+            
+        return data
+
+    def preprocesses_inverse_transform(self,data):
+        assert len(self.preprossesers) == data.shape[1]
+        data = data.copy()
+        for idx, preprosseser in enumerate(self.preprossesers):
+            if preprosseser is None: continue
+            column = data.iloc[:,idx]
+            data.iloc[:,idx] = preprosseser.inverse_transform(column)
+            
+        return data
+
+    def get_label_encoded(self,column_index, conditioning_value):
+        # Takes in column index and find the encoded values of the conditioning value
+        preprosess = self.preprossesers[column_index]
+        if not isinstance(preprosess, Categorical_preparation): raise ValueError("Column is not categorical")
+        return preprosess.get_label_encoded(conditioning_value)
         
-        data_pd = pd.DataFrame(data,columns=self.df.columns)
 
-        for i in range(len(self.label_encoder_list)):
-            column, label_encoder = self.label_encoder_list[i]["column"], self.label_encoder_list[i]["label_encoder"]
-            le = self.label_encoder_list[i]["label_encoder"]
-            data_pd[self.label_encoder_list[i]["column"]] = data_pd[self.label_encoder_list[i]["column"]].astype(int)
-            data_pd[self.label_encoder_list[i]["column"]] = le.inverse_transform(data_pd[self.label_encoder_list[i]["column"]])
 
-        
-        log_columns_numpy = data_pd[self.log_columns].values
-        log_columns_numpy = np.exp(log_columns_numpy) - self.lower_transform_bound
-        data_pd[self.log_columns] = log_columns_numpy
-        
-        
-        if self.integer_columns:
-            for column in self.integer_columns:
-                data_pd[column]= (np.round(data_pd[column].values))
-                data_pd[column] = data_pd[column].astype(int)
 
-        data_pd.replace(-9999999, np.nan,inplace=True)
-        data_pd.replace('empty', np.nan,inplace=True) # TODO: is this needed
-
-        return data_pd
-
-    def get_label_encoder(self, col_name): # TODO: change to use the index?
-        for i in range(len(self.label_encoder_list)):
-            if self.label_encoder_list[i]["column"] == col_name:
-                return self.label_encoder_list[i]["label_encoder"]
-        return None
-
-    def get_label_encoded(self, col_name, value):
-        if col_name is None: return None #TODO: remove this since we have a check at another point
-        encoder = self.get_label_encoder(col_name)
-        if not encoder: raise ValueError("Column name", col_name, "not found")
-        if not value in encoder.classes_: raise ValueError("Value", value, "not found in column", col_name)
-        return encoder.transform([value])[0]
+    
+                
+  
         

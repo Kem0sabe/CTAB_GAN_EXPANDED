@@ -7,7 +7,7 @@ from torch.optim import Adam
 from torch.nn import functional as F
 from torch.nn import (Dropout, LeakyReLU, Linear, Module, ReLU, Sequential,
 Conv2d, ConvTranspose2d, Sigmoid, init, BCELoss, CrossEntropyLoss,SmoothL1Loss,LayerNorm)
-from model.synthesizer.transformer2 import ImageTransformer,DataTransformer
+from model.synthesizer.transformer3 import ImageTransformer,DataTransformer
 
 from model.privacy_utils.rdp_accountant import compute_rdp, get_privacy_spent
 from tqdm import tqdm
@@ -399,14 +399,12 @@ class CTABGANSynthesizer:
         self.batch_size = batch_size
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    def fit(self, train_data=pd.DataFrame, 
-            epochs = 150,
-            categorical=[], mixed={}, general=[], type={}):
+    def fit(self, prepared_data, data_prep, categorical, mixed, general,epochs=100):
 
-
-        self.transformer = DataTransformer(train_data=train_data, categorical_list=categorical, mixed_dict=mixed, general_list=general)
+        
+        self.transformer = DataTransformer(prepared_data, data_prep, categorical, mixed, general)
        
-        train_data = self.transformer.transform(train_data)
+        train_data = self.transformer.transform(prepared_data)
         data_sampler = Sampler(train_data, self.transformer.get_output_info())
         data_dim = self.transformer.get_output_dim()
         self.cond_generator = Cond(train_data, self.transformer.get_output_info())
@@ -528,9 +526,9 @@ class CTABGANSynthesizer:
                 
                 cross_entropy = cond_loss(faket, self.transformer.get_output_info(), c, m)
                 # ata, meta, components_list, ordering, model, n_clusters, devic
-                inverse2, _ = self.transformer.inverse_transform_static(fakeact,self.transformer,self.device)
-                constraint_penalty = compute_constraint_penalty(inverse2)
-                t4 = self.transformer.inverse_transform(fakeact.detach().cpu())
+                #inverse2, _ = self.transformer.inverse_transform_static(fakeact,self.transformer,self.device)
+                #constraint_penalty = compute_constraint_penalty(inverse2)
+                #t4 = self.transformer.inverse_transform(fakeact.detach().cpu())
                 
                 constraint_constant = 1e-1
                 """
@@ -540,10 +538,10 @@ class CTABGANSynthesizer:
                 """
                 _,info_real = discriminator(real_cat_d)
 
-                print("Cross Entropy: ", cross_entropy, "\nConstraint Penalty: ", constraint_penalty, "\nThe...", -torch.mean(y_fake))
+                #print("Cross Entropy: ", cross_entropy, "\nConstraint Penalty: ", constraint_penalty, "\nThe...", -torch.mean(y_fake))
         
 
-                g = -torch.mean(y_fake) + cross_entropy + constraint_constant * constraint_penalty
+                g = -torch.mean(y_fake) + cross_entropy #+ constraint_constant * constraint_penalty
                 g.backward(retain_graph=True)
                 loss_mean = torch.norm(torch.mean(info_fake.view(self.batch_size,-1), dim=0) - torch.mean(info_real.view(self.batch_size,-1), dim=0), 1)
                 loss_std = torch.norm(torch.std(info_fake.view(self.batch_size,-1), dim=0) - torch.std(info_real.view(self.batch_size,-1), dim=0), 1)

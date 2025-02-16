@@ -8,11 +8,11 @@ df = df.drop(columns=['Year','Model'])
 synthesizer =  CTABGAN(df,
                  test_ratio = 0.20,
                  categorical_columns = ["Brand","Model","Fuel_Type","Transmission"], 
-                 log_columns = [],
-                 mixed_columns= {"Engine_Size": [0]},
-                 general_columns = [],
+                 log_columns = ["Mileage"],
+                 mixed_columns= {},
+                 gaussian_columns = [],
                  non_categorical_columns = [],
-                 integer_columns = [],
+                 integer_columns = ["Price"],
                  problem_type= {"Classification": 'Price'}) 
 
 synthesizer.fit(1)
