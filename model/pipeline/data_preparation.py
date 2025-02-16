@@ -10,19 +10,8 @@ class DataPrep(object):
   
     def __init__(self, raw_df: pd.DataFrame, categorical_list, log_list):
         
-        
-
     
-
-      
-        #self.df = self.df.replace(r' ', np.nan) #TODO: what other things should be defaulted to np.nan
-        # TODO: how to handle missing/nan values
-
-        
         self.preprossesers =  self.setup_preprocesses(raw_df,categorical_list, log_list)
-        
-            
-
         super().__init__()
 
     

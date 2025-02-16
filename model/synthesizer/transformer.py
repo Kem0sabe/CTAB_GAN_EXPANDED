@@ -19,10 +19,8 @@ class DataTransformer():
         
         self.data_prep = data_prep
        
-       
         self.transformers = self.setup_transformers(prepared_data,categorical_list, mixed_dict, gaussian_list)
         
-    
 
     
 

@@ -7,7 +7,7 @@ class Categorical_preparation:
         self.label_encoder.fit(column)
         
     def transform(self, column):
-        # TODO: maybe assert if right type of data
+      
         encoded_column = self.label_encoder.transform(column)
         return np.asarray(encoded_column,int)
 

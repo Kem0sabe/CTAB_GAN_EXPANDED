@@ -20,13 +20,13 @@ class CTABGAN():
     def __init__(self,
                  df,
                  test_ratio = 0.20,
-                 categorical_columns = [ 'workclass', 'education', 'marital-status', 'occupation', 'relationship', 'race', 'gender', 'native-country', 'income'], 
+                 categorical_columns = [], 
                  log_columns = [],
-                 mixed_columns= {'capital-loss':[0.0],'capital-gain':[0.0]},
-                 gaussian_columns = ["age"],
+                 mixed_columns= {},
+                 gaussian_columns = [],
                  non_categorical_columns = [],
-                 integer_columns = ['age', 'fnlwgt','capital-gain', 'capital-loss','hours-per-week'],
-                 problem_type= {"Classification": "income"}):
+                 integer_columns = [],
+                 ):
 
         self.__name__ = 'CTABGAN'
               
@@ -41,7 +41,7 @@ class CTABGAN():
         # we remove non_categorical option
         # self.non_categorical_columns = non_categorical_columns
         self.integer_columns = integer_columns
-        self.problem_type = problem_type
+
                 
     def fit(self,epochs = 150):
         

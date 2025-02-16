@@ -65,10 +65,7 @@ class Mixed_data_transformer(Column_transformer):
         means = self.model.means_.reshape((1, self.n_clusters))
         stds = np.sqrt(self.model.covariances_).reshape((1, self.n_clusters))
         features = np.empty(shape=(len(data_filter_col),self.n_clusters))
-        #if ispositive == True:
-        #    if id_ in positive_list:
-        #        features = np.abs(data_col - means) / (4 * stds)
-        #else:
+        
         features = (data_filter_col - means) / (4 * stds)
 
         probs = self.model.predict_proba(data_filter_col.reshape([-1, 1]))

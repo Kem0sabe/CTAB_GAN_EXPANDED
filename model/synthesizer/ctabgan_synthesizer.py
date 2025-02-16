@@ -12,47 +12,7 @@ from model.synthesizer.transformer import ImageTransformer,DataTransformer
 from model.privacy_utils.rdp_accountant import compute_rdp, get_privacy_spent
 from tqdm import tqdm
 
-"""
-class Classifier(Module):
-    def __init__(self,input_dim, dis_dims,st_ed):
-        super(Classifier,self).__init__()
-        dim = input_dim-(st_ed[1]-st_ed[0])
-        seq = []
-        self.str_end = st_ed
-        for item in list(dis_dims):
-            seq += [
-                Linear(dim, item),
-                LeakyReLU(0.2),
-                Dropout(0.5)
-            ]
-            dim = item
-        
-        if (st_ed[1]-st_ed[0])==1:
-            seq += [Linear(dim, 1)]
-        
-        elif (st_ed[1]-st_ed[0])==2:
-            seq += [Linear(dim, 1),Sigmoid()]
-        else:
-            seq += [Linear(dim,(st_ed[1]-st_ed[0]))] 
-        
-        self.seq = Sequential(*seq)
 
-    def forward(self, input):
-        
-        label=None
-        
-        if (self.str_end[1]-self.str_end[0])==1:
-            label = input[:, self.str_end[0]:self.str_end[1]]
-        else:
-            label = torch.argmax(input[:, self.str_end[0]:self.str_end[1]], axis=-1)
-        
-        new_imp = torch.cat((input[:,:self.str_end[0]],input[:,self.str_end[1]:]),1)
-        
-        if ((self.str_end[1]-self.str_end[0])==2) | ((self.str_end[1]-self.str_end[0])==1):
-            return self.seq(new_imp).view(-1), label
-        else:
-            return self.seq(new_imp), label
-"""
 def apply_activate(data, output_info):
     data_t = []
     st = 0
@@ -79,9 +39,6 @@ def random_choice_prob_index_sampling(probs,col_idx):
         option_list.append(np.random.choice(np.arange(len(probs[i])), p=pp))
     
     #TODO: rewrite it in vector form (this only used in the sampling)
-    #selected_probs = probs[col_idx]
-    #k = np.array([np.random.choice(len(p), p=p) for p in selected_probs])
-    #k1 = np.array(option_list).reshape(col_idx.shape)
     return np.array(option_list).reshape(col_idx.shape)
 
 def random_choice_prob_index(a, axis=1):
@@ -120,7 +77,7 @@ class Cond(object):
         self.n_opt = 0  
         st = 0
         self.p = np.zeros((counter , maximum_output_interval(output_info)))  
-        #self.p_sampling = []
+        
         self.col_to_cat_index = []  #for converting column index to category index when conditioning on generated data
         
         for col_index, activations in enumerate(output_info):
@@ -544,45 +501,6 @@ class CTABGANSynthesizer:
                 loss_info.backward()
                 optimizerG.step()
 
-                """
-                if problem_type:
-                           
-                    fake = self.generator(noisez)
-                    
-                    faket = self.Gtransformer.inverse_transform(fake)
-                    
-                    fakeact = apply_activate(faket, self.transformer.output_info)
-                    
-                    real_pre, real_label = classifier(real)
-                    fake_pre, fake_label = classifier(fakeact)
-                     
-                    c_loss = CrossEntropyLoss() 
-                    
-                    if (st_ed[1] - st_ed[0])==1:
-                        c_loss= SmoothL1Loss()
-                        real_label = real_label.type_as(real_pre)
-                        fake_label = fake_label.type_as(fake_pre)
-                        real_label = torch.reshape(real_label,real_pre.size())
-                        fake_label = torch.reshape(fake_label,fake_pre.size())
-                        
-                    
-                    elif (st_ed[1] - st_ed[0])==2:
-                        c_loss = BCELoss()
-                        real_label = real_label.type_as(real_pre)
-                        fake_label = fake_label.type_as(fake_pre)
-
-                    loss_cc = c_loss(real_pre, real_label)
-                    loss_cg = c_loss(fake_pre, fake_label)
-
-                    optimizerG.zero_grad()
-                    loss_cg.backward()
-                    optimizerG.step()
-
-                    optimizerC.zero_grad()
-                    loss_cc.backward()
-                    optimizerC.step()
-
-                """
                                 
             epoch += 1
 

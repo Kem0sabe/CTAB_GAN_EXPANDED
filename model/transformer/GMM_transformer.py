@@ -37,12 +37,7 @@ class GMM_transformer(Column_transformer):
         means = self.model.means_.reshape((1, self.n_clusters))
         stds = np.sqrt(self.model.covariances_).reshape((1, self.n_clusters))
         features = np.empty(shape=(len(data_col),self.n_clusters))
-        """
-        if ispositive == True:
-            if id_ in positive_list:
-                features = np.abs(data_col - means) / (4 * stds)
-        else:
-        """
+       
         features = (data_col - means) / (4 * stds)
 
         probs = self.model.predict_proba(data_col.reshape([-1, 1]))
@@ -131,14 +126,7 @@ class GMM_transformer(Column_transformer):
         u = torch.clamp(u, -1, 1)
         tmp = u * 4 * std_t + mean_t
 
-        #for idx, val in enumerate(tmp):
-        #    if (val < transformer.min) | (val > transformer.max):
-        #        invalid_ids.append(idx)
-
-        #if id_ in general_columns:
-        #    tmp = torch.round(tmp)
-
-
+    
         new_st = st + 1 + torch.sum(components).item()  # Increment for next iteration
         return tmp, new_st, []
 
