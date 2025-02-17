@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import torch
-from model.transformer.Column_transformer import Column_transformer
+from model.transformer.column_transformers.column_transformer import Column_transformer
 
 class Categorical_transformer(Column_transformer):
     def __init__(self, column):

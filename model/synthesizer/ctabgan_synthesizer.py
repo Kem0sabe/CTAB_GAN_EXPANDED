@@ -7,85 +7,30 @@ from torch.optim import Adam
 from torch.nn import functional as F
 from torch.nn import (Dropout, LeakyReLU, Linear, Module, ReLU, Sequential,
 Conv2d, ConvTranspose2d, Sigmoid, init, BCELoss, CrossEntropyLoss,SmoothL1Loss,LayerNorm)
-from model.synthesizer.transformer import ImageTransformer,DataTransformer
+from model.transformer.transformer import ImageTransformer,DataTransformer
+
 from model.privacy_utils.rdp_accountant import compute_rdp, get_privacy_spent
 from tqdm import tqdm
 
 
-class Classifier(Module):
-    def __init__(self,input_dim, dis_dims,st_ed):
-        super(Classifier,self).__init__()
-        dim = input_dim-(st_ed[1]-st_ed[0])
-        seq = []
-        self.str_end = st_ed
-        for item in list(dis_dims):
-            seq += [
-                Linear(dim, item),
-                LeakyReLU(0.2),
-                Dropout(0.5)
-            ]
-            dim = item
-        
-        if (st_ed[1]-st_ed[0])==1:
-            seq += [Linear(dim, 1)]
-        
-        elif (st_ed[1]-st_ed[0])==2:
-            seq += [Linear(dim, 1),Sigmoid()]
-        else:
-            seq += [Linear(dim,(st_ed[1]-st_ed[0]))] 
-        
-        self.seq = Sequential(*seq)
-
-    def forward(self, input):
-        
-        label=None
-        
-        if (self.str_end[1]-self.str_end[0])==1:
-            label = input[:, self.str_end[0]:self.str_end[1]]
-        else:
-            label = torch.argmax(input[:, self.str_end[0]:self.str_end[1]], axis=-1)
-        
-        new_imp = torch.cat((input[:,:self.str_end[0]],input[:,self.str_end[1]:]),1)
-        
-        if ((self.str_end[1]-self.str_end[0])==2) | ((self.str_end[1]-self.str_end[0])==1):
-            return self.seq(new_imp).view(-1), label
-        else:
-            return self.seq(new_imp), label
-
 def apply_activate(data, output_info):
     data_t = []
     st = 0
-    for item in output_info:
-        if item[1] == 'tanh':
-            ed = st + item[0]
-            data_t.append(torch.tanh(data[:, st:ed]))
-            st = ed
-        elif item[1] == 'softmax':
-            ed = st + item[0]
-            data_t.append(F.gumbel_softmax(data[:, st:ed], tau=0.2))
+ 
+    for activations in output_info:
+        for activation in activations:
+            output_size, activation_type, _= activation
+            ed = st + output_size
+            if activation_type == 'tanh':
+                data_t.append(torch.tanh(data[:, st:ed]))
+            elif activation_type == 'softmax':
+                data_t.append(F.gumbel_softmax(data[:, st:ed], tau=0.2))
+            else:
+                raise ValueError('Activation function not supported')
             st = ed
     return torch.cat(data_t, dim=1)
 
-def get_st_ed(target_col_index,output_info):
-    st = 0
-    c= 0
-    tc= 0
 
-    for item in output_info:
-        if c==target_col_index:
-            break
-        if item[1]=='tanh':
-            st += item[0]
-            if item[2] == 'yes_g':
-                c+=1
-        elif item[1] == 'softmax':
-            st += item[0]
-            c+=1
-        tc+=1    
-    
-    ed= st+output_info[tc][0] 
-
-    return (st,ed)
 
 def random_choice_prob_index_sampling(probs,col_idx):
     option_list = []
@@ -93,16 +38,19 @@ def random_choice_prob_index_sampling(probs,col_idx):
         pp = probs[i]
         option_list.append(np.random.choice(np.arange(len(probs[i])), p=pp))
     
+    #TODO: rewrite it in vector form (this only used in the sampling)
     return np.array(option_list).reshape(col_idx.shape)
 
 def random_choice_prob_index(a, axis=1):
     r = np.expand_dims(np.random.rand(a.shape[1 - axis]), axis=axis)
     return (a.cumsum(axis=axis) > r).argmax(axis=axis)
 
-def maximum_interval(output_info):
+def maximum_output_interval(output_info):
     max_interval = 0
-    for item in output_info:
-        max_interval = max(max_interval, item[0])
+    for activations in output_info:
+        for activation in activations:
+            output_size = activation[0]
+        max_interval = max(max_interval, output_size)
     return max_interval
 
 class Cond(object):
@@ -111,96 +59,137 @@ class Cond(object):
         self.model = []
         st = 0
         counter = 0
-        for item in output_info:
-           
-            if item[1] == 'tanh':
-                st += item[0]
-                continue
-            elif item[1] == 'softmax':
-                ed = st + item[0]
-                counter += 1
-                self.model.append(np.argmax(data[:, st:ed], axis=-1))
-                st = ed
-            
+        for activations in output_info:
+            for activation in activations:
+                output_size, activation_type, _= activation
+                if activation_type not in ['tanh', 'softmax']: 
+                    raise ValueError('Activation function not supported')
+                
+                if activation_type == 'softmax':
+                    ed = st + output_size
+                    counter += 1
+                    self.model.append(np.argmax(data[:, st:ed], axis=-1))
+
+                st += output_size
+                
         self.interval = []
         self.n_col = 0  
         self.n_opt = 0  
         st = 0
-        self.p = np.zeros((counter, maximum_interval(output_info)))  
-        self.p_sampling = []
-        for item in output_info:
-            if item[1] == 'tanh':
-                st += item[0]
-                continue
-            elif item[1] == 'softmax': 
-                ed = st + item[0]
-                tmp = np.sum(data[:, st:ed], axis=0)  
-                tmp_sampling = np.sum(data[:, st:ed], axis=0)     
-                tmp = np.log(tmp + 1)  
-                tmp = tmp / np.sum(tmp) 
-                tmp_sampling = tmp_sampling / np.sum(tmp_sampling)
-                self.p_sampling.append(tmp_sampling)
-                self.p[self.n_col, :item[0]] = tmp 
-                self.interval.append((self.n_opt, item[0]))
-                self.n_opt += item[0]
-                self.n_col += 1
-                st = ed
+        self.p = np.zeros((counter , maximum_output_interval(output_info)))  
+        
+        self.col_to_cat_index = []  #for converting column index to category index when conditioning on generated data
+        
+        for col_index, activations in enumerate(output_info):
+            categorical_index = None
+            for activation in activations:
+                output_size, activation_type, _= activation
+                if activation_type not in ['tanh', 'softmax']: 
+                    raise ValueError('Activation function not supported')
+                
+                if activation_type == 'softmax': # 
+                    ed = st + output_size
+                    tmp = np.sum(data[:, st:ed], axis=0)
+                    tmp = np.log(tmp + 1)
+                    tmp = tmp / np.sum(tmp)
+                    self.p[self.n_col, :output_size] = tmp
+                    self.interval.append((self.n_opt, output_size))
+                    self.n_opt += output_size
+                    categorical_index = self.n_col
+                    self.n_col += 1
+                    
+                
+                st += output_size
+
+            self.col_to_cat_index.append(categorical_index)
+                
                 
         self.interval = np.asarray(self.interval)
         
     def sample_train(self, batch):
-        if self.n_col == 0:
-            return None
-        batch = batch
-
+        if self.n_col == 0: return None
+    
         idx = np.random.choice(np.arange(self.n_col), batch)
-
         vec = np.zeros((batch, self.n_opt), dtype='float32')
+        
         mask = np.zeros((batch, self.n_col), dtype='float32')
         mask[np.arange(batch), idx] = 1  
         opt1prime = random_choice_prob_index(self.p[idx]) 
         for i in np.arange(batch):
             vec[i, self.interval[idx[i], 0] + opt1prime[i]] = 1
+
+        vec[np.arange(batch), self.interval[idx, 0] + opt1prime] = 1 # The zero is placed at the the start interval of the idx + the offset for the categorical value
+
             
         return vec, mask, idx, opt1prime
 
-    def sample(self, batch):
-        if self.n_col == 0:
-            return None
-        batch = batch
-      
-        idx = np.random.choice(np.arange(self.n_col), batch)
+    def sample(self, batch,column_index,column_value_index):
+        if self.n_col == 0: return None #TODO: does this mean we need at least one categorical column?
 
+        if column_index is not None and column_value_index is not None: #If condition is specified we generate sample with such a condition
+            return self.sample_condition(batch, column_index, column_value_index)
+
+        idx = np.random.choice(np.arange(self.n_col), batch)
         vec = np.zeros((batch, self.n_opt), dtype='float32')
-        opt1prime = random_choice_prob_index_sampling(self.p_sampling,idx)
-        
-        for i in np.arange(batch):
-            vec[i, self.interval[idx[i], 0] + opt1prime[i]] = 1
+        opt1prime = random_choice_prob_index_sampling(self.p,idx)
+        vec[np.arange(batch), self.interval[idx, 0] + opt1prime] = 1
             
         return vec
+
+    def sample_condition(self, batch, column_index, column_value_index):
+        
+        cat_index = self.col_to_cat_index[column_index]
+        idx = np.full(batch, cat_index) 
+        vec = np.zeros((batch, self.n_opt), dtype='float32')
+        vec[np.arange(batch), self.interval[idx, 0] + column_value_index] = 1
+
+        return vec # TODO: make it such you do not have to specify
+
+    
 
 def cond_loss(data, output_info, c, m):
     loss = []
     st = 0
     st_c = 0
-    for item in output_info:
-        if item[1] == 'tanh':
-            st += item[0]
-            continue
 
-        elif item[1] == 'softmax':
-            ed = st + item[0]
-            ed_c = st_c + item[0]
-            tmp = F.cross_entropy(
-            data[:, st:ed],
-            torch.argmax(c[:, st_c:ed_c], dim=1),
-            reduction='none')
-            loss.append(tmp)
-            st = ed
-            st_c = ed_c
+    for activations in output_info:
+        for activation in activations:
+            output_size, activation_type, _= activation
+            if activation_type not in ['tanh', 'softmax']: 
+                raise ValueError('Activation function not supported')
+                
+            if activation_type == 'softmax':
+                ed = st + output_size
+                ed_c = st_c + output_size
+                tmp = F.cross_entropy(
+                data[:, st:ed],
+                torch.argmax(c[:, st_c:ed_c], dim=1),
+                reduction='none')
+                loss.append(tmp)
+                st_c = ed_c
+            
+            st += output_size
 
     loss = torch.stack(loss, dim=1)
     return (loss * m).sum() / data.size()[0]
+
+def compute_constraint_penalty(data):
+    
+
+    # Compute the difference between the first and second columns
+    diff = data[:, 0] - data[:, 1]
+
+    # Apply ReLU to the negative differences to get the penalty
+    penalty = F.relu(-diff)
+
+    # Sum the penalties to get the total constraint penalty
+    total_penalty = penalty.sum()
+
+    return total_penalty
+
+
+ 
+    
 
 class Sampler(object):
     def __init__(self, data, output_info):
@@ -209,17 +198,22 @@ class Sampler(object):
         self.model = []
         self.n = len(data)
         st = 0
-        for item in output_info:
-            if item[1] == 'tanh':
-                st += item[0]
-                continue
-            elif item[1] == 'softmax':
-                ed = st + item[0]
-                tmp = []
-                for j in range(item[0]):
-                    tmp.append(np.nonzero(data[:, st + j])[0])
-                self.model.append(tmp)
-                st = ed
+        
+        for activations in output_info:
+            for activation in activations:
+                output_size, activation_type, _= activation
+                if activation_type == 'tanh':
+                    st += output_size
+                    continue
+                elif activation_type == 'softmax':
+                    ed = st + output_size
+                    tmp = []
+                    for j in range(output_size):
+                        tmp.append(np.nonzero(data[:, st + j])[0])
+                    self.model.append(tmp)
+                    st = ed
+                else:
+                    raise ValueError('Activation function not supported')
                 
     def sample(self, n, col, opt):
         if col is None:
@@ -357,26 +351,18 @@ class CTABGANSynthesizer:
         self.batch_size = batch_size
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    def fit(self, train_data=pd.DataFrame, 
-            epochs = 150,
-            categorical=[], mixed={}, general=[], non_categorical=[], type={}):
+    def fit(self, prepared_data, data_prep, categorical, mixed, general,epochs=100):
 
-        problem_type = None
-        target_index=None
-        if type:
-            problem_type = list(type.keys())[0]
-            if problem_type:
-                target_index = train_data.columns.get_loc(type[problem_type])
-
-        self.transformer = DataTransformer(train_data=train_data, categorical_list=categorical, mixed_dict=mixed, general_list=general, non_categorical_list=non_categorical)
-        self.transformer.fit() 
-        train_data = self.transformer.transform(train_data.values)
-        data_sampler = Sampler(train_data, self.transformer.output_info)
-        data_dim = self.transformer.output_dim
-        self.cond_generator = Cond(train_data, self.transformer.output_info)
+        
+        self.transformer = DataTransformer(prepared_data, data_prep, categorical, mixed, general)
+       
+        train_data = self.transformer.transform(prepared_data)
+        data_sampler = Sampler(train_data, self.transformer.get_output_info())
+        data_dim = self.transformer.get_output_dim()
+        self.cond_generator = Cond(train_data, self.transformer.get_output_info())
         		
-        sides = [4, 8, 16, 24, 32, 64]
-        col_size_d = data_dim + self.cond_generator.n_opt
+        sides = [4, 8, 16, 24, 32, 64] #TODO: this coulc be made faster and computaionally faster (use math instead of this)
+        col_size_d = data_dim + self.cond_generator.n_opt #TODO: what happens here why datafim + n_opt
         for i in sides:
             if i * i >= col_size_d:
                 self.dside = i
@@ -402,11 +388,8 @@ class CTABGANSynthesizer:
         st_ed = None
         classifier=None
         optimizerC= None
-        if target_index != None:
-            st_ed= get_st_ed(target_index,self.transformer.output_info)
-            classifier = Classifier(data_dim,self.class_dim,st_ed).to(self.device)
-            optimizerC = optim.Adam(classifier.parameters(),**optimizer_params)
-        
+
+        target_index = None #TODO: remove this when finding solution to this
         
         self.generator.apply(weights_init)
         discriminator.apply(weights_init)
@@ -443,7 +426,7 @@ class CTABGANSynthesizer:
                     
                     fake = self.generator(noisez)
                     faket = self.Gtransformer.inverse_transform(fake)
-                    fakeact = apply_activate(faket, self.transformer.output_info)
+                    fakeact = apply_activate(faket, self.transformer.get_output_info())
                     
                     fake_cat = torch.cat([fakeact, c], dim=1)
                     real_cat = torch.cat([real, c_perm], dim=1)
@@ -486,19 +469,31 @@ class CTABGANSynthesizer:
 
                 fake = self.generator(noisez)
                 faket = self.Gtransformer.inverse_transform(fake)
-                fakeact = apply_activate(faket, self.transformer.output_info)
+                fakeact = apply_activate(faket, self.transformer.get_output_info())
 
                 fake_cat = torch.cat([fakeact, c], dim=1) 
                 fake_cat = self.Dtransformer.transform(fake_cat)
                     
                 y_fake,info_fake = discriminator(fake_cat)
                 
-                cross_entropy = cond_loss(faket, self.transformer.output_info, c, m)
-
-                _,info_real = discriminator(real_cat_d)
+                cross_entropy = cond_loss(faket, self.transformer.get_output_info(), c, m)
+                # ata, meta, components_list, ordering, model, n_clusters, devic
+                #inverse2, _ = self.transformer.inverse_transform_static(fakeact,self.transformer,self.device)
+                #constraint_penalty = compute_constraint_penalty(inverse2)
+                #t4 = self.transformer.inverse_transform(fakeact.detach().cpu())
                 
+                constraint_constant = 1e-1
+                """
+                fake_cat2 = fakeact
+                fake_cat2 = fake_cat2.detach().cpu().numpy()
+                fake_cat2_norm = self.transformer.inverse_transform(fake_cat2)
+                """
+                _,info_real = discriminator(real_cat_d)
 
-                g = -torch.mean(y_fake) + cross_entropy
+                #print("Cross Entropy: ", cross_entropy, "\nConstraint Penalty: ", constraint_penalty, "\nThe...", -torch.mean(y_fake))
+        
+
+                g = -torch.mean(y_fake) + cross_entropy #+ constraint_constant * constraint_penalty
                 g.backward(retain_graph=True)
                 loss_mean = torch.norm(torch.mean(info_fake.view(self.batch_size,-1), dim=0) - torch.mean(info_real.view(self.batch_size,-1), dim=0), 1)
                 loss_std = torch.norm(torch.std(info_fake.view(self.batch_size,-1), dim=0) - torch.std(info_real.view(self.batch_size,-1), dim=0), 1)
@@ -506,60 +501,46 @@ class CTABGANSynthesizer:
                 loss_info.backward()
                 optimizerG.step()
 
-
-                if problem_type:
-                           
-                    fake = self.generator(noisez)
-                    
-                    faket = self.Gtransformer.inverse_transform(fake)
-                    
-                    fakeact = apply_activate(faket, self.transformer.output_info)
-                    
-                    real_pre, real_label = classifier(real)
-                    fake_pre, fake_label = classifier(fakeact)
-                     
-                    c_loss = CrossEntropyLoss() 
-                    
-                    if (st_ed[1] - st_ed[0])==1:
-                        c_loss= SmoothL1Loss()
-                        real_label = real_label.type_as(real_pre)
-                        fake_label = fake_label.type_as(fake_pre)
-                        real_label = torch.reshape(real_label,real_pre.size())
-                        fake_label = torch.reshape(fake_label,fake_pre.size())
-                        
-                    
-                    elif (st_ed[1] - st_ed[0])==2:
-                        c_loss = BCELoss()
-                        real_label = real_label.type_as(real_pre)
-                        fake_label = fake_label.type_as(fake_pre)
-
-                    loss_cc = c_loss(real_pre, real_label)
-                    loss_cg = c_loss(fake_pre, fake_label)
-
-                    optimizerG.zero_grad()
-                    loss_cg.backward()
-                    optimizerG.step()
-
-                    optimizerC.zero_grad()
-                    loss_cc.backward()
-                    optimizerC.step()
                                 
             epoch += 1
 
             
    
-    def sample(self, n):
+
+
+
+    def sample(self, n, column_index = None,column_value_index = None): #TODO: move the column value and indexes to other places
         
         self.generator.eval()
 
-        output_info = self.transformer.output_info
-        steps = n // self.batch_size + 1
+        remainding_samples = n
+        samples_to_generate = remainding_samples
+        results = []
+        while samples_to_generate > 0:
+            steps = samples_to_generate // self.batch_size + 1
+            data = self.sample_raw(steps,column_index = None,column_value_index = None)
+            result,_ = self.transformer.inverse_transform(data)
+            results.append(result)
+    
+            remainding_samples = max(0, remainding_samples - len(result))
+            successfull_samples = n - remainding_samples
+            generation_success_rate = successfull_samples / n
+            
+            
+            # We resample another batch using the expected success rate, and add 20% extra samples to account for randomness
+            samples_to_generate = int(remainding_samples // generation_success_rate * 1.2)
+
         
+        results = np.concatenate(results, axis=0)
+
+        return results[0:n]
+
+    def sample_raw(self, steps, column_index = None,column_value_index = None):
+        output_info = self.transformer.get_output_info()
         data = []
-        
         for i in range(steps):
             noisez = torch.randn(self.batch_size, self.random_dim, device=self.device)
-            condvec = self.cond_generator.sample(self.batch_size)
+            condvec = self.cond_generator.sample(self.batch_size, column_index,column_value_index)
             c = condvec
             c = torch.from_numpy(c).to(self.device)
             noisez = torch.cat([noisez, c], dim=1)
@@ -571,29 +552,5 @@ class CTABGANSynthesizer:
             data.append(fakeact.detach().cpu().numpy())
 
         data = np.concatenate(data, axis=0)
-        result,resample = self.transformer.inverse_transform(data)
-        
-        while len(result) < n:
-            data_resample = []    
-            steps_left = resample// self.batch_size + 1
-            
-            for i in range(steps_left):
-                noisez = torch.randn(self.batch_size, self.random_dim, device=self.device)
-                condvec = self.cond_generator.sample(self.batch_size)
-                c = condvec
-                c = torch.from_numpy(c).to(self.device)
-                noisez = torch.cat([noisez, c], dim=1)
-                noisez =  noisez.view(self.batch_size,self.random_dim+self.cond_generator.n_opt,1,1)
-                    
-                fake = self.generator(noisez)
-                faket = self.Gtransformer.inverse_transform(fake)
-                fakeact = apply_activate(faket, output_info)
-                data_resample.append(fakeact.detach().cpu().numpy())
-
-            data_resample = np.concatenate(data_resample, axis=0)
-
-            res,resample = self.transformer.inverse_transform(data_resample)
-            result  = np.concatenate([result,res],axis=0)
-        
-        return result[0:n]
+        return data
 
