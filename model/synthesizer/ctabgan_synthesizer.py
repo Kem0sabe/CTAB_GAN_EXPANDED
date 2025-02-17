@@ -513,22 +513,27 @@ class CTABGANSynthesizer:
         
         self.generator.eval()
 
-        
-        steps = n // self.batch_size + 1
-        
-        data = self.sample_raw(steps,column_index = None,column_value_index = None)
-        result,resample = self.transformer.inverse_transform(data)
-        
-        while len(result) < resample:
-   
-            steps_left = resample// self.batch_size + 1
-           
-            data_resample = self.sample_raw(resample,column_index = None,column_value_index = None)
+        remainding_samples = n
+        samples_to_generate = remainding_samples
+        results = []
+        while samples_to_generate > 0:
+            steps = samples_to_generate // self.batch_size + 1
+            data = self.sample_raw(steps,column_index = None,column_value_index = None)
+            result,_ = self.transformer.inverse_transform(data)
+            results.append(result)
+    
+            remainding_samples = max(0, remainding_samples - len(result))
+            successfull_samples = n - remainding_samples
+            generation_success_rate = successfull_samples / n
+            
+            
+            # We resample another batch using the expected success rate, and add 20% extra samples to account for randomness
+            samples_to_generate = int(remainding_samples // generation_success_rate * 1.2)
 
-            res,resample = self.transformer.inverse_transform(data_resample)
-            result  = np.concatenate([result,res],axis=0)
         
-        return result[0:n]
+        results = np.concatenate(results, axis=0)
+
+        return results[0:n]
 
     def sample_raw(self, steps, column_index = None,column_value_index = None):
         output_info = self.transformer.get_output_info()

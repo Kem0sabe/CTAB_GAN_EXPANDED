@@ -4,6 +4,7 @@ Generative model training algorithm based on the CTABGANSynthesiser
 """
 import pandas as pd
 import time
+from model.pipeline.data_type_assigner import Data_type_assigner
 from model.pipeline.data_preparation import DataPrep
 from model.pipeline.Column_assigner import Column_assigner, Transform_type
 from model.synthesizer.ctabgan_synthesizer import CTABGANSynthesizer
@@ -48,11 +49,19 @@ class CTABGAN():
         
         #preprocess_assignments = Column_assigner.assign_columns_preprocess(self.raw_df, self.categorical_columns, self.log_columns)
         #transform_assignments = Column_assigner.assign_column_transforms(self.raw_df, self.categorical_columns, self.mixed_columns, self.gaussian_columns)
-        
+        self.data_type_assigner = Data_type_assigner(self.raw_df, self.integer_columns)
+
+        #self.raw_df["age"] = self.raw_df["age"].astype('float64')
+        #self.raw_df["age"] = 2.6
+        #self.raw_df["capital-gain"] = 1.75
+
+       
+
+        self.raw_df = self.data_type_assigner.assign(self.raw_df)
+
         self.data_prep = DataPrep(self.raw_df, self.categorical_columns, self.log_columns)
 
         self.prepared_data = self.data_prep.preprocesses_transform(self.raw_df)
-        #self.prepared_data = self.prepared_data.fillna(-9999999)
         
 
 
@@ -69,10 +78,13 @@ class CTABGAN():
             column_index = self.prepared_data.columns.get_loc(conditioning_column) if conditioning_column in self.prepared_data.columns else ValueError("Conditioning column", conditioning_column, "not found in the data columns")
             column_value_index = self.data_prep.get_label_encoded(column_index, conditioning_value)
 
-        sample = self.synthesizer.sample(n, column_index, column_value_index)
-        sample = pd.DataFrame(sample, columns=self.prepared_data.columns)
+        sample_transformed = self.synthesizer.sample(n, column_index, column_value_index)
+        sample_transformed = pd.DataFrame(sample_transformed, columns=self.prepared_data.columns)
         #sample.replace(-9999999, np.nan, inplace=True)
-        return self.data_prep.preprocesses_inverse_transform(sample)
+        sample = self.data_prep.preprocesses_inverse_transform(sample_transformed)
+        sample_with_data_types = self.data_type_assigner.assign(sample)
+        return sample_with_data_types
+        
         
   
 

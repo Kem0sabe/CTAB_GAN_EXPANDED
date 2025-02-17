@@ -15,7 +15,7 @@ synthesizer =  CTABGAN(df,
                  mixed_columns= {"capital-gain": [0,np.nan]},
                  gaussian_columns = ["age"],
                  non_categorical_columns = [],
-                 integer_columns = []) 
+                 integer_columns = ["age","capital-gain"]) 
 
 
 synthesizer.fit(1)
