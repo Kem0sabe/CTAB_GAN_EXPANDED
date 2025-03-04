@@ -7,6 +7,7 @@ import sys
 
 import numpy as np
 from scipy import special
+import scipy
 import six
 
 ########################
@@ -65,6 +66,35 @@ def _compute_log_a_int(q, sigma, alpha):
   return float(log_a)
 
 
+def _compute_log_a_int_optimized(q, sigma, alpha):
+    """Optimized computation of log(A_alpha) for integer alpha. 0 < q < 1."""
+    assert isinstance(alpha, six.integer_types)
+    
+    # Create array of all i values at once
+    i_values = np.arange(alpha + 1)
+    
+    # Compute binomial coefficients using logarithms of factorials
+    log_binom = (scipy.special.gammaln(alpha + 1) - 
+                 scipy.special.gammaln(i_values + 1) - 
+                 scipy.special.gammaln(alpha - i_values + 1))
+    
+    # Compute all terms in the sum at once
+    log_q = np.log(q)
+    log_1_q = np.log(1 - q)
+    log_coef = log_binom + i_values * log_q + (alpha - i_values) * log_1_q
+    
+    # Compute the quadratic term
+    quadratic_term = (i_values * i_values - i_values) / (2 * (sigma**2))
+    
+    # Combine terms
+    terms = log_coef + quadratic_term
+    
+    # Use scipy's logsumexp which is numerically stable
+    log_a = scipy.special.logsumexp(terms)
+    
+    return float(log_a)
+
+
 def _compute_log_a_frac(q, sigma, alpha):
   """Compute log(A_alpha) for fractional alpha. 0 < q < 1."""
   # The two parts of A_alpha, integrals over (-inf,z0] and [z0, +inf), are
@@ -105,7 +135,7 @@ def _compute_log_a_frac(q, sigma, alpha):
 def _compute_log_a(q, sigma, alpha):
   """Compute log(A_alpha) for any positive finite alpha."""
   if float(alpha).is_integer():
-    return _compute_log_a_int(q, sigma, int(alpha))
+    return _compute_log_a_int_optimized(q, sigma, int(alpha))
   else:
     return _compute_log_a_frac(q, sigma, alpha)
 
@@ -204,7 +234,8 @@ def _compute_rdp(q, sigma, alpha):
   return _compute_log_a(q, sigma, alpha) / (alpha - 1)
 
 
-def compute_rdp(q, noise_multiplier, steps, orders):
+def compute_rdp(q, noise_multiplier, steps, orders): # TODO: Remove all dependence to this and instead use the single
+                                                     # The single does not need to be recompeuted for each step
   """Compute RDP of the Sampled Gaussian Mechanism.
 
   Args:
@@ -224,6 +255,26 @@ def compute_rdp(q, noise_multiplier, steps, orders):
                     for order in orders])
 
   return rdp * steps
+
+def compute_rdp_single(q, noise_multiplier, orders):
+  """Compute RDP of the Sampled Gaussian Mechanism.
+
+  Args:
+    q: The sampling rate.
+    noise_multiplier: The ratio of the standard deviation of the Gaussian noise
+        to the l2-sensitivity of the function to which it is added.
+    orders: An array (or a scalar) of RDP orders.
+
+  Returns:
+    The RDPs at all orders, can be np.inf.
+  """
+  if np.isscalar(orders):
+    rdp = _compute_rdp(q, noise_multiplier, orders)
+  else:
+    rdp = np.array([_compute_rdp(q, noise_multiplier, order)
+                    for order in orders])
+
+  return rdp
 
 
 def get_privacy_spent(orders, rdp, target_eps=None, target_delta=None):
@@ -278,3 +329,70 @@ def compute_rdp_from_ledger(ledger, orders):
     total_rdp += compute_rdp(
         sample.selection_probability, effective_z, 1, orders)
   return total_rdp
+
+
+
+def find_sigma_for_target_epsilon(q, steps, target_epsilon, target_delta, 
+                                  precision=0.01, max_iterations=100,verbose=False):
+    """
+    Find the noise multiplier (sigma) required to achieve a target epsilon with given delta.
+    
+    Args:
+        q: The sampling rate (batch_size / dataset_size)
+        steps: The total number of training steps
+        target_epsilon: The target privacy budget
+        target_delta: The target delta parameter (typically 1/N or smaller)
+        precision: Desired precision for sigma (default: 0.01)
+        max_iterations: Maximum number of binary search iterations (default: 100)
+        
+    Returns:
+        The sigma value that achieves the target privacy guarantee
+    """
+    # Initial search range for sigma
+    sigma_min, sigma_max = 0.01, 100.0
+    
+    # Initialize tracking variables
+    iteration = 0
+    best_sigma = None
+    best_eps_diff = float('inf')
+    
+    # Set RDP orders
+    orders = range(2, 4096)
+    
+    # Binary search for the appropriate sigma
+    while sigma_max - sigma_min > precision and iteration < max_iterations:
+        # Try middle point of current range
+        sigma_mid = (sigma_min + sigma_max) / 2
+        
+        # Calculate RDP for these parameters
+        rdp = compute_rdp_single(q, sigma_mid, orders) * steps
+        # Convert RDP to (ε, δ)-DP
+        eps, _, opt_order = get_privacy_spent(orders, rdp, target_delta=target_delta)
+        
+        # Track closest approximation
+        eps_diff = abs(eps - target_epsilon)
+        if eps_diff < best_eps_diff:
+            best_sigma = sigma_mid
+            best_eps_diff = eps_diff
+        
+        
+        # Adjust search range
+        if eps > target_epsilon:  # Current sigma is too small (privacy too weak)
+            sigma_min = sigma_mid
+        else:  # Current sigma is too large (privacy too strong)
+            sigma_max = sigma_mid
+        
+        iteration += 1
+    
+    # If binary search didn't converge, use best approximation
+    if iteration == max_iterations:
+        
+        return best_sigma
+    
+    # Calculate final epsilon to verify
+    final_rdp = compute_rdp(q, sigma_max, steps, orders)
+    final_eps, _, _ = get_privacy_spent(orders, final_rdp, target_delta=target_delta)
+    
+    if verbose: print(f"Found sigma={sigma_max:.4f} for epsilon={final_eps:.4f} (target was {target_epsilon})")
+    return sigma_max  # Return slightly conservative estimate
+
