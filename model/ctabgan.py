@@ -26,11 +26,12 @@ class CTABGAN():
                  gaussian_columns = [],
                  non_categorical_columns = [],
                  integer_columns = [],
+                 problem_type = ("Classification",'workclass'),
                  dp_constraints = {
-                    "epsilon_budget": 50,
+                    "epsilon_budget": 10,
                     "delta": None,
                     "sigma": None,
-                    "clip_coeff": None
+                    "clip_coeff": 1
                  }
                  ):
 
@@ -43,9 +44,10 @@ class CTABGAN():
         self.log_columns = log_columns
         self.mixed_columns = mixed_columns
         self.gaussian_columns = gaussian_columns
-
-        self.dp_constraints = dp_constraints
         self.integer_columns = integer_columns
+
+        self.problem_type = problem_type
+        self.dp_constraints = dp_constraints
 
                 
     def fit(self,epochs = 100):
@@ -70,7 +72,7 @@ class CTABGAN():
         
 
 
-        self.synthesizer.fit(self.prepared_data , self.data_prep, self.dp_constraints, self.categorical_columns, self.mixed_columns, self.gaussian_columns, epochs)
+        self.synthesizer.fit(self.prepared_data , self.data_prep, self.dp_constraints, self.categorical_columns, self.mixed_columns, self.gaussian_columns, self.problem_type,epochs)
         return
         end_time = time.time()
         print('Finished training in',end_time-start_time," seconds.")

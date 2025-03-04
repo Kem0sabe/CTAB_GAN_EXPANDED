@@ -13,7 +13,45 @@ from model.transformer.transformer import ImageTransformer,DataTransformer
 from model.privacy_utils.DP_controller import DP_controller
 from tqdm import tqdm
 
+class Classifier(Module):
+    def __init__(self,input_dim, dis_dims,st_ed):
+        super(Classifier,self).__init__()
+        dim = input_dim-(st_ed[1]-st_ed[0])
+        seq = []
+        self.str_end = st_ed
+        for item in list(dis_dims):
+            seq += [
+                Linear(dim, item),
+                LeakyReLU(0.2),
+                Dropout(0.5)
+            ]
+            dim = item
+        
+        if (st_ed[1]-st_ed[0])==1:
+            seq += [Linear(dim, 1)]
+        
+        elif (st_ed[1]-st_ed[0])==2:
+            seq += [Linear(dim, 1),Sigmoid()]
+        else:
+            seq += [Linear(dim,(st_ed[1]-st_ed[0]))] 
+        
+        self.seq = Sequential(*seq)
 
+    def forward(self, input):
+        
+        label=None
+        
+        if (self.str_end[1]-self.str_end[0])==1:
+            label = input[:, self.str_end[0]:self.str_end[1]]
+        else:
+            label = torch.argmax(input[:, self.str_end[0]:self.str_end[1]], axis=-1)
+        
+        new_imp = torch.cat((input[:,:self.str_end[0]],input[:,self.str_end[1]:]),1)
+        
+        if ((self.str_end[1]-self.str_end[0])==2) | ((self.str_end[1]-self.str_end[0])==1):
+            return self.seq(new_imp).view(-1), label
+        else:
+            return self.seq(new_imp), label
 
 
 def apply_activate(data, output_info):
@@ -33,6 +71,51 @@ def apply_activate(data, output_info):
             st = ed
     return torch.cat(data_t, dim=1)
 
+
+def get_st_ed(target_col_index,output_info):
+    st = 0
+    c= 0
+    tc= 0
+    """
+    for item in output_info:
+        if c==target_col_index:
+            break
+        if item[1]=='tanh':
+            st += item[0]
+            if item[2] == 'yes_g':
+                c+=1
+        elif item[1] == 'softmax':
+            st += item[0]
+            c+=1
+        tc+=1
+
+    for activations in output_info:
+        for activation in activations:
+            output_size, activation_type, yes_no = activation
+            if c==target_col_index:
+                break
+            if activation_type == 'tanh':
+                st += output_size
+                if yes_no == 'yes_g':
+                    c+=1
+            elif activation_type == 'softmax':
+                st += output_size
+                c+=1
+            tc+=1
+    """
+    for activations in output_info:
+        if c == target_col_index:
+            break
+        for activation in activations:
+            output_size, activation_type, _ = activation
+            st += output_size
+        c += 1
+    ed = st + output_info[c][0][0]
+
+    
+    #ed= st+output_info[tc][0] 
+
+    return (st,ed)
 
 
 def random_choice_prob_index_sampling(probs,col_idx):
@@ -361,7 +444,23 @@ class CTABGANSynthesizer:
         self.batch_size = batch_size
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    def fit(self, prepared_data, data_prep, dp_constraints, categorical, mixed, general,epochs=100):
+    def fit(self, prepared_data, data_prep, dp_constraints, categorical, mixed, general,problem_type = None, epochs=100,verbose = True):
+
+        if problem_type and len(problem_type) != 2: 
+            raise ValueError('Problem type should be a tupele with (problem, target)')
+
+        problem = None
+        target_index = None
+        if problem_type:
+            problem = problem_type[0]
+            target = problem_type[1]
+            if problem not in ['Classification', 'Regression']:
+                raise ValueError(f'Problem type should be either Classification or Regression, not {problem}')
+
+            if target not in prepared_data.columns:
+                raise ValueError(f'Target column {target} not found in the data')
+
+            target_index = prepared_data.columns.get_loc(target)
 
         
         self.transformer = DataTransformer(prepared_data, data_prep, categorical, mixed, general)
@@ -395,11 +494,15 @@ class CTABGANSynthesizer:
         optimizerG = Adam(self.generator.parameters(), **optimizer_params)
         optimizerD = Adam(discriminator.parameters(), **optimizer_params)
 
+
+
         st_ed = None
         classifier=None
         optimizerC= None
-
-        target_index = None #TODO: remove this when finding solution to this
+        if target_index != None:
+            st_ed= get_st_ed(target_index,self.transformer.get_output_info())
+            classifier = Classifier(data_dim,self.class_dim,st_ed).to(self.device)
+            optimizerC = optim.Adam(classifier.parameters(),**optimizer_params)
         
         self.generator.apply(weights_init)
         discriminator.apply(weights_init)
@@ -430,12 +533,19 @@ class CTABGANSynthesizer:
                         clip_coeff=dp_constraints.get('clip_coeff',1), 
                         sigma=dp_constraints.get('sigma',None), 
                         device=self.device, 
-                        verbose=True)
+                        verbose=verbose)
 
             self.clip_coeff = self.dp_controller.get_clip_coeff()
             self.sigma = self.dp_controller.get_sigma()
      
-        
+        if verbose:
+            print(f'Start training with {epochs} epochs\n {ci} critic iterations\n {steps_per_epoch} steps per epoch\n batch size {self.batch_size}')
+            if problem_type:
+                print(f'Using auxilarary classifier. Problem type: {problem}, target: {target}')
+
+            if self.private:
+                print(f"Using Differential privacy with sigma {self.sigma} and clip coefficient {self.clip_coeff}")
+                
         for i in tqdm(range(epochs)):
             for id_ in range(steps_per_epoch):
 				
@@ -553,14 +663,49 @@ class CTABGANSynthesizer:
                 loss_info.backward()
                 optimizerG.step()
 
+                if problem_type:
+                           
+                    fake = self.generator(noisez)
+                    
+                    faket = self.Gtransformer.inverse_transform(fake)
+                    
+                    fakeact = apply_activate(faket, self.transformer.get_output_info())
+                    
+                    real_pre, real_label = classifier(real)
+                    fake_pre, fake_label = classifier(fakeact)
+                     
+                    c_loss = CrossEntropyLoss() 
+                    
+                    if (st_ed[1] - st_ed[0])==1:
+                        c_loss= SmoothL1Loss()
+                        real_label = real_label.type_as(real_pre)
+                        fake_label = fake_label.type_as(fake_pre)
+                        real_label = torch.reshape(real_label,real_pre.size())
+                        fake_label = torch.reshape(fake_label,fake_pre.size())
+                        
+                    
+                    elif (st_ed[1] - st_ed[0])==2:
+                        c_loss = BCELoss()
+                        real_label = real_label.type_as(real_pre)
+                        fake_label = fake_label.type_as(fake_pre)
+
+                    loss_cc = c_loss(real_pre, real_label)
+                    loss_cg = c_loss(fake_pre, fake_label)
+
+                    optimizerG.zero_grad()
+                    loss_cg.backward()
+                    optimizerG.step()
+
+                    optimizerC.zero_grad()
+                    loss_cc.backward()
+                    optimizerC.step()
+
                                 
             epoch += 1
 
             if self.private:
-                print("starting to check privacy")
-                epsilon = self.dp_controller.get_spent_privacy(steps)
-            
                 
+                epsilon = self.dp_controller.get_spent_privacy(steps)
                 print("Epoch :", epoch, "Epsilon spent : ", epsilon)
                 
 
