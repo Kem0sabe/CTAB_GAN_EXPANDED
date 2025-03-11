@@ -15,7 +15,7 @@ import numpy as np
 
 warnings.filterwarnings("ignore")
 
-class CTABGAN():
+class CTAB_XTRA_DP():
 
     def __init__(self,
                  df,
@@ -35,7 +35,7 @@ class CTABGAN():
                  }
                  ):
 
-        self.__name__ = 'CTABGAN'
+        self.__name__ = 'CTAB_XTRA_DP'
               
         self.synthesizer = CTABGANSynthesizer()
         self.raw_df = df
@@ -54,13 +54,9 @@ class CTABGAN():
         
         start_time = time.time()
         
-        #preprocess_assignments = Column_assigner.assign_columns_preprocess(self.raw_df, self.categorical_columns, self.log_columns)
-        #transform_assignments = Column_assigner.assign_column_transforms(self.raw_df, self.categorical_columns, self.mixed_columns, self.gaussian_columns)
+     
         self.data_type_assigner = Data_type_assigner(self.raw_df, self.integer_columns)
 
-        #self.raw_df["age"] = self.raw_df["age"].astype('float64')
-        #self.raw_df["age"] = 2.6
-        #self.raw_df["capital-gain"] = 1.75
 
        
 
@@ -74,8 +70,7 @@ class CTABGAN():
 
         self.synthesizer.fit(self.prepared_data , self.data_prep, self.dp_constraints, self.categorical_columns, self.mixed_columns, self.gaussian_columns, self.problem_type,epochs)
         return
-        end_time = time.time()
-        print('Finished training in',end_time-start_time," seconds.")
+        
 
 
     def generate_samples(self,n=100,conditioning_column = None,conditioning_value = None):
@@ -87,7 +82,7 @@ class CTABGAN():
 
         sample_transformed = self.synthesizer.sample(n, column_index, column_value_index)
         sample_transformed = pd.DataFrame(sample_transformed, columns=self.prepared_data.columns)
-        #sample.replace(-9999999, np.nan, inplace=True)
+        
         sample = self.data_prep.preprocesses_inverse_transform(sample_transformed)
         sample_with_data_types = self.data_type_assigner.assign(sample)
         return sample_with_data_types
