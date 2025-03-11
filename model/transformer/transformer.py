@@ -2,13 +2,13 @@ import numpy as np
 import pandas as pd
 import torch
 from typing import List
-from model.pipeline.data_preparation import DataPrep
+from ..pipeline.data_preparation import DataPrep
 
-from model.transformer.column_transformers.column_transformer import Column_transformer
-from model.transformer.column_transformers.gmm_transformer import GMM_transformer
-from model.transformer.column_transformers.categorical_transformer import Categorical_transformer
-from model.transformer.column_transformers.mixed_data_transformer import Mixed_data_transformer
-from model.transformer.column_transformers.gaussian_transformer import Gaussian_transformer
+from .column_transformers.column_transformer import Column_transformer
+from .column_transformers.gmm_transformer import GMM_transformer
+from .column_transformers.categorical_transformer import Categorical_transformer
+from .column_transformers.mixed_data_transformer import Mixed_data_transformer
+from .column_transformers.gaussian_transformer import Gaussian_transformer
 
 class DataTransformer():
     

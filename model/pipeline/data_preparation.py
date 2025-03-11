@@ -3,8 +3,8 @@ import pandas as pd
 from sklearn import preprocessing
 from sklearn import model_selection
 
-from model.pipeline.Log_preparation import Log_preparation
-from model.pipeline.Categorical_preparation import Categorical_preparation
+from .Log_preparation import Log_preparation
+from .Categorical_preparation import Categorical_preparation
 
 class DataPrep(object):
   

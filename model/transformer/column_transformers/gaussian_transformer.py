@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-from model.transformer.column_transformers.column_transformer import Column_transformer
+from .column_transformer import Column_transformer
 
 class Gaussian_transformer(Column_transformer):
     def __init__(self, column):

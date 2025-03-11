@@ -4,10 +4,10 @@ Generative model training algorithm based on the CTABGANSynthesiser
 """
 import pandas as pd
 import time
-from model.pipeline.data_type_assigner import Data_type_assigner
-from model.pipeline.data_preparation import DataPrep
-from model.pipeline.Column_assigner import Column_assigner, Transform_type
-from model.synthesizer.ctabgan_synthesizer import CTABGANSynthesizer
+from .pipeline.data_type_assigner import Data_type_assigner
+from .pipeline.data_preparation import DataPrep
+from .pipeline.Column_assigner import Column_assigner, Transform_type
+from .synthesizer.ctabgan_synthesizer import CTABGANSynthesizer
 
 
 import warnings

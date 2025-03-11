@@ -7,10 +7,10 @@ from torch.optim import Adam
 from torch.nn import functional as F
 from torch.nn import (Dropout, LeakyReLU, Linear, Module, ReLU, Sequential,
 Conv2d, ConvTranspose2d, Sigmoid, init, BCELoss, CrossEntropyLoss,SmoothL1Loss,LayerNorm)
-from model.transformer.transformer import ImageTransformer,DataTransformer
+from ..transformer.transformer import ImageTransformer,DataTransformer
 
 
-from model.privacy_utils.DP_controller import DP_controller
+from ..privacy_utils.DP_controller import DP_controller
 from tqdm import tqdm
 
 class Classifier(Module):

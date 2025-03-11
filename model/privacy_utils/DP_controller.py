@@ -1,5 +1,5 @@
 
-from model.privacy_utils.rdp_accountant import compute_rdp, get_privacy_spent,compute_rdp_single,find_sigma_for_target_epsilon
+from .rdp_accountant import compute_rdp, get_privacy_spent,compute_rdp_single,find_sigma_for_target_epsilon
 
 class DP_controller:
     def __init__(self,data_size, batch_size, total_steps, epsilon_budget,delta=None,clip_coeff = 1, sigma = None,device = 'cpu',verbose = True):
