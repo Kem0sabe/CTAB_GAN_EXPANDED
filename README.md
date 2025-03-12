@@ -1,61 +1,317 @@
-# Rewrite of CTAB_GAN+ 
-This is a rewrite of the CTAB-GAN+ found in https://github.com/Team-TUD/CTAB-GAN-Plus, which should be credited with their work on a solid tabular data GAN. 
+# CTAB_XTRA_DP
 
-## Ongoing project
-This is part of an ongoing project trying speed up and implement new features to this framework. The readme file from the original github follows below.
+[![PyPI version](https://badge.fury.io/py/ctab-xtra-dp.svg)](https://badge.fury.io/py/ctab-xtra-dp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-# NEWS! - 19/11/2023
-Our new paper [TabuLa: Harnessing Language Models for Tabular Data Synthesis](https://arxiv.org/abs/2310.12746) is on arxiv now! The code is published 
-[here](https://github.com/zhao-zilong/Tabula). Tabula improves tabular data synthesis by leveraging language model structures without the burden of pre-trained model weights. It offers a faster training process by preprocessing tabular data to shorten token sequence, which sharply reducing training time while consistently delivering higher-quality synthetic data. Its training time is longer than CTAB-GAN+, but the synthetic data fidelity is amazing! **It also works for high-dimentional categorical columns!**
+A privacy-preserving synthetic tabular data generator based on GANs.
 
-# CTAB-GAN+
-This is the official git paper [CTAB-GAN+: Enhancing Tabular Data Synthesis](https://arxiv.org/abs/2204.00401). Current code is **WITHOUT** differential privacy part. The code with differential privacy is in this [github](https://github.com/Team-TUD/CTAB-GAN-Plus-DP). 
-If you have any question, please contact `z.zhao-8@tudelft.nl` for more information.
+## Installation
 
-
-## Prerequisite
-
-The required package version
-```
-numpy==1.21.0
-torch==1.9.1
-pandas==1.2.4
-sklearn==0.24.1
-dython==0.6.4.post1
-scipy==1.4.1
-```
-The sklean package in newer version has updated its function for `sklearn.mixture.BayesianGaussianMixture`. Therefore, user should use this proposed sklearn version to successfully run the code!
-
-## Example
-`Experiment_Script_Adult.ipynb`  `Experiment_Script_king.ipynb` are two example notebooks for training CTAB-GAN+ with Adult (classification) and king (regression) datasets. The datasets are alread under `Real_Datasets` folder.
-The evaluation code is also provided.
-
-## Problem type
-
-You can either indicate your dataset problem type as Classification, Regression. If there is no problem type, you can leave the problem type as None as follows:
-```
-problem_type= {None: None}
+```bash
+pip install ctab-xtra-dp
 ```
 
-## For large dataset
+## Overview
 
-If your dataset has large number of column, you may encounter the problem that our currnet code cannot encode all of your data since CTAB-GAN+ will wrap the encoded data into an image-like format. What you can do is changing the line 378 and 385 in `model/synthesizer/ctabgan_synthesizer.py`. The number in the `slide` list
+`CTAB_XTRA_DP` is a generative model for creating high-quality synthetic tabular data with differential privacy guarantees. It extends the [CTAB-GAN+](https://github.com/Team-TUD/CTAB-GAN-Plus) architecture to generate synthetic datasets that preserve the statistical properties of the original data while providing formal privacy protection.
+
+## Features
+
+- Generate synthetic tabular data with similar statistical properties to the original data
+- Automatic handling of various data types (categorical, numerical, mixed, log-transformed)
+- Handles Missing Not at Random (MNAR) null values
+- Built-in differential privacy to protect sensitive information
+- Conditional generation based on specific column values
+
+## Quick Start
+
+```python
+from ctab_xtra_dp import CTAB_XTRA_DP
+import pandas as pd
+
+# Load your data
+df = pd.read_csv("your_data.csv")
+
+# Initialize the model
+synthesizer = CTAB_XTRA_DP(
+    df=df,
+    categorical_columns=['workclass', 'education', 'marital-status', 'occupation', 
+                         'relationship', 'race', 'gender', 'native-country'],
+    mixed_columns={'capital-loss': [0],'capital-gain': [0]},
+    integer_columns=['age', 'hours-per-week']
+)
+
+# Train the model
+synthesizer.fit(epochs=100)
+
+# Generate synthetic data
+synthetic_data = synthesizer.generate_samples(n=1000)
+
+# Generate samples with specific conditions
+synthetic_data_bachelors = synthesizer.generate_samples(
+    n=500, 
+    conditioning_column='education', 
+    conditioning_value='Bachelors'
+)
 ```
-sides = [4, 8, 16, 24, 32]
+
+## API Reference
+
+### CTAB_XTRA_DP
+
+```python
+CTAB_XTRA_DP(
+    df,
+    categorical_columns=[], 
+    log_columns=[],
+    mixed_columns={},
+    gaussian_columns=[],
+    integer_columns=[],
+    problem_type=("Classification", 'target_column'),
+    dp_constraints={
+        "epsilon_budget": 10,
+        "delta": None,
+        "sigma": None,
+        "clip_coeff": 1
+    }
+)
 ```
-is the side size of image. You can enlarge the list to [4, 8, 16, 24, 32, 64] or [4, 8, 16, 24, 32, 64, 128] for accepting larger dataset.
 
-## Bibtex
+#### Parameters
 
-To cite this paper, you could use this bibtex
+- **df** : pandas.DataFrame
+  - The input dataframe to train on
+  
+- **categorical_columns** : list
+  - List of column names that should be treated as categorical
+  
+- **log_columns** : list
+  - List of column names that should be log-transformed before modeling
+  
+- **mixed_columns** : dict
+  - Dictionary mapping column names to their unique modal values
+  - Used for columns with mixed continuous-discrete distributions
+  - Example: `{'capital-loss': [0]}` indicates that 'capital-loss' has a special value at 0
+  - Specifying `{'capital-loss': [np.null]}` indicates to the model that we have a MNAR value
+  
+- **gaussian_columns** : list
+  - List of column names that should be modeled with a Gaussian distribution
+  
+- **integer_columns** : list
+  - List of column names that should be treated as integers
+  - This overwrites the original datatype purposed to the model
+  - If the column type is interger, this overwrite is not neccesary
+  
+- **problem_type** : tuple
+  - Set the target column used for the auxiliary classifier during training
+  - A tuple of (problem_type, target_column)
+  - problem_type can be "Classification" or "Regression"
+  - If sett to None, no auxiliary classifier is used. (The generation works more then fine without it)
+    
+  
+- **dp_constraints** : dict
+  - Differential privacy parameters:
+    - **epsilon_budget**: Privacy budget for the entire training process. Computes the sigma noise for the given epsilon to ensure privacy guarentees.
+    - **delta**: Probabilistic relaxation parameter, should be set to a number much less than 1/n (default: 0.1/n)
+    - **sigma**: Gaussian noise to be added for each itteration. If this is set, it overrides any epsilon value.
+    - **clip_coeff**: Coefficient for gradient clipping. A common practice is to leave this at 1. (default: 1)
 
+### Methods
+
+#### fit
+
+```python
+fit(epochs=100)
 ```
-@article{zhao2023ctab,
-  title={Ctab-gan+: Enhancing tabular data synthesis},
-  author={Zhao, Zilong and Kunar, Aditya and Birke, Robert and Van der Scheer, Hiek and Chen, Lydia Y},
-  journal={Frontiers in big Data},
-  volume={6},
-  year={2023},
-  publisher={Frontiers Media SA}
+
+Train the model on the input dataframe provided in the constructor.
+
+**Parameters:**
+- **epochs** : int
+  - Number of training epochs (default: 100)
+
+**Returns:**
+- None
+
+#### generate_samples
+
+```python
+generate_samples(n=100, conditioning_column=None, conditioning_value=None)
+```
+
+Generate synthetic samples with option to conditional generation.
+
+**Parameters:**
+- **n** : int
+  - Number of synthetic samples to generate (default: 100)
+- **conditioning_column** : str, optional
+  - Column name to condition on
+- **conditioning_value** : any, optional
+  - Value of the conditioning column
+
+**Returns:**
+- **pandas.DataFrame**
+  - Generated synthetic data
+
+## Data Type Handling
+
+`CTAB_XTRA_DP` automatically processes different data types: **This is not yet implemented**
+
+- **Categorical data**: One-hot encoded
+- **Mixed data**: Modeled using a mixture of discrete modes and continuous distributions
+- **Log-transformed data**: Log-transformed before modeling, exponentiated during generation
+- **Integer data**: Values are rounded to integers during generation
+- **Gaussian data**: Modeled directly with a Gaussian distribution
+
+## Differential Privacy
+
+The model implements differential privacy using:
+
+- Gradient clipping to bound the sensitivity of the training process
+- Gaussian noise addition to gradients according to the specified privacy parameters
+- Privacy accounting to track epsilon expenditure
+
+## Examples
+
+### Basic Usage
+
+```python
+import pandas as pd
+from ctab_xtra_dp import CTAB_XTRA_DP
+
+# Load data
+df = pd.read_csv("adult.csv")
+
+# Initialize model
+synthesizer = CTAB_XTRA_DP(
+    df=df,
+    categorical_columns=['workclass', 'education', 'marital-status', 'occupation', 
+                         'relationship', 'race', 'gender', 'native-country'],
+    mixed_columns={'capital-loss': [0], 'capital-gain': [0]},
+    integer_columns=['age', 'fnlwgt', 'hours-per-week']
+)
+
+# Train model
+synthesizer.fit(epochs=150)
+
+# Generate synthetic data
+synthetic_data = synthesizer.generate_samples(n=1000)
+
+# Save synthetic data
+synthetic_data.to_csv("synthetic_adult.csv", index=False)
+```
+
+### Generating Conditioned Samples
+
+```python
+# Generate samples with specific education level
+bachelors_samples = synthesizer.generate_samples(
+    n=500,
+    conditioning_column='education',
+    conditioning_value='Bachelors'
+)
+
+# Generate samples with specific occupation
+managers_samples = synthesizer.generate_samples(
+    n=500,
+    conditioning_column='occupation',
+    conditioning_value='Exec-managerial'
+)
+```
+### With auxiliary classifier
+```python
+import pandas as pd
+from ctab_xtra_dp import CTAB_XTRA_DP
+
+# Load data
+df = pd.read_csv("adult.csv")
+
+# Initialize model
+synthesizer = CTAB_XTRA_DP(
+    df=df,
+    categorical_columns=['workclass', 'education', 'marital-status', 'occupation', 
+                         'relationship', 'race', 'gender', 'native-country',
+    mixed_columns={'capital-loss': [0], 'capital-gain': [0]},
+    integer_columns=['age', 'fnlwgt', 'hours-per-week'],
+    problem_type=("Classification", 'income')
+)
+
+# Train model
+synthesizer.fit(epochs=150)
+
+# Generate synthetic data
+synthetic_data = synthesizer.generate_samples(n=1000)
+
+# Save synthetic data
+synthetic_data.to_csv("synthetic_adult.csv", index=False)
+```
+
+
+### With Differential Privacy
+
+```python
+# Initialize with stronger privacy guarantees
+private_synthesizer = CTAB_XTRA_DP(
+    df=df,
+    categorical_columns=['workclass', 'education', 'marital-status', 'occupation', 
+                         'relationship', 'race', 'gender', 'native-country'],
+    integer_columns=['age', 'hours-per-week'],
+    dp_constraints={
+        "epsilon_budget": 1.0,  # Stricter privacy budget
+        "clip_coeff": 1.0
+    }
+)
+
+private_synthesizer.fit(epochs=100)
+private_samples = private_synthesizer.generate_samples(n=1000)
+```
+Not specifying delta allows the model to compute a resonable delta value.
+
+### With MNAR value
+A handfull of the 'capital-loss' and 'capital-gain' has missing financial data. In this case removing null values would loose valueable information. At the same time, interperating it as 0 will not distinguios does who do not have much financial activity from people who have null in the system some access reason. 
+```python
+# Initialize with stronger privacy guarantees
+private_synthesizer = CTAB_XTRA_DP(
+    df=df,
+    categorical_columns=['workclass', 'education', 'marital-status', 'occupation', 
+                         'relationship', 'race', 'gender', 'native-country'],
+    integer_columns=['age', 'hours-per-week'],
+    mixed_columns={'capital-loss': [0,np.nan], 'capital-gain': [0,np.nan]},
+    dp_constraints={
+        "epsilon_budget": 1.0,  # Stricter privacy budget
+        "clip_coeff": 1.0
+    }
+)
+
+private_synthesizer.fit(epochs=100)
+private_samples = private_synthesizer.generate_samples(n=1000)
+```
+Not specifying delta allows the model to compute a resonable delta value.
+## Evaluation
+
+It's recommended to evaluate the quality of the synthetic data using metrics like:
+
+- Statistical similarity (distributions, correlations)
+- Machine learning utility (train on synthetic, test on real)
+- Privacy metrics (membership inference attack resistance)
+
+The package provides built-in evaluation methods **(but not implemented yet)**
+
+
+## Citation
+**The citation is not yet avaliable**
+If you use this package in your research, please cite:
+
+```bibtex
+@article{ctab-xtra-dp,
+  title={CTAB-XTRA-DP: Improved Tabular Data Synthesis with Differential Privacy},
+  author={Your Name},
+  journal={arXiv preprint},
+  year={2025}
 }
 ```
+
+
+## License
+
+MIT
