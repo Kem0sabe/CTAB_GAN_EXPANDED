@@ -1,5 +1,6 @@
 # CTAB_XTRA_DP
 [![GitHub](https://img.shields.io/badge/GitHub-Repository-blue?logo=github)](https://github.com/Kem0sabe/CTAB_XTRA_DP) 
+[![PyPI version](https://badge.fury.io/py/ctab-xtra-dp.svg)](https://badge.fury.io/py/ctab-xtra-dp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 
