@@ -14,7 +14,15 @@ class DP_controller:
         self.device = device
         self.verbose = verbose
 
-        self.q = batch_size/data_size
+
+        if not isinstance(batch_size, int) or batch_size < 1: 
+            raise ValueError("Batch size must be a positive integer")
+
+        if not isinstance(total_steps, int) or total_steps < 1:
+            raise ValueError("Total steps must be a positive integer")
+        
+        self.q = batch_size/data_size if batch_size < data_size else 1 # If the batch size is set greater and the toal data size, then the whole data is used
+
 
         max_lmbd = 4095
         self.lmbds = range(2, max_lmbd + 1)
@@ -47,7 +55,7 @@ class DP_controller:
                 print(f"Using provided sigma: {sigma}, potentially overwriting epsilon budget")
             return sigma
         
-        if epsilon_budget is None: ValueError("Either epsilon budget or must be provided")
+        if epsilon_budget is None: raise ValueError("Either epsilon budget or must be provided")
         sigma = find_sigma_for_target_epsilon(q, total_steps,epsilon_budget, delta,verbose=self.verbose)
         if self.verbose:
             print(f"Sigma set to: {sigma}, using epsilon budget: {epsilon_budget} and delta: {delta}")

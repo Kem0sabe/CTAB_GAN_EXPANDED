@@ -108,6 +108,8 @@ def _compute_log_a_int(q, sigma, alpha):
 def _compute_log_a_int_optimized(q, sigma, alpha):
     """Optimized computation of log(A_alpha) for integer alpha. 0 < q < 1."""
     assert isinstance(alpha, six.integer_types)
+    if not (0 < q < 1):
+        raise ValueError("q has to be in the open interval (0, 1).")
     
     # Create array of all i values at once
     i_values = np.arange(alpha + 1)

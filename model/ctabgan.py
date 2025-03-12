@@ -30,7 +30,7 @@ class CTAB_XTRA_DP():
 
         self.__name__ = 'CTAB_XTRA_DP'
               
-        self.synthesizer = CTABGANSynthesizer()
+        
         self.raw_df = df
         self.categorical_columns = categorical_columns
         self.log_columns = log_columns
@@ -42,7 +42,7 @@ class CTAB_XTRA_DP():
         self.dp_constraints = dp_constraints
 
                 
-    def fit(self,epochs = 100):
+    def fit(self,epochs = 100,batch_size=500,verbose = True):
         
         start_time = time.time()
         
@@ -59,8 +59,8 @@ class CTAB_XTRA_DP():
         self.prepared_data = self.data_prep.preprocesses_transform(self.raw_df)
         
 
-
-        self.synthesizer.fit(self.prepared_data , self.data_prep, self.dp_constraints, self.categorical_columns, self.mixed_columns, self.gaussian_columns, self.problem_type,epochs)
+        self.synthesizer = CTABGANSynthesizer(batch_size = batch_size)
+        self.synthesizer.fit(self.prepared_data , self.data_prep, self.dp_constraints, self.categorical_columns, self.mixed_columns, self.gaussian_columns, self.problem_type,epochs,verbose = verbose)
         return
         
 

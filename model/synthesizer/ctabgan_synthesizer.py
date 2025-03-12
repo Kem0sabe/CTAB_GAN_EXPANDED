@@ -706,7 +706,7 @@ class CTABGANSynthesizer:
             if self.private:
                 
                 epsilon = self.dp_controller.get_spent_privacy(steps)
-                print("Epoch :", epoch, "Epsilon spent : ", epsilon)
+                if verbose: print("Epoch :", epoch, "Epsilon spent : ", epsilon)
                 
 
             
