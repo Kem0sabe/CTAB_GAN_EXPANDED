@@ -38,8 +38,7 @@ synthesizer = CTAB_XTRA_DP(
     categorical_columns=['education', 'marital-status', 'occupation'],
     log_columns=[],
     mixed_columns={'capital-loss': [0]},
-    integer_columns=['age', 'hours-per-week'],
-    problem_type=("Classification", 'income')
+    integer_columns=['age', 'hours-per-week']
 )
 
 # Train the model
@@ -125,7 +124,7 @@ CTAB_XTRA_DP(
 fit(epochs=100)
 ```
 
-Train the model on the input dataframe.
+Train the model on the input dataframe provided in the constructor.
 
 **Parameters:**
 - **epochs** : int
@@ -140,7 +139,7 @@ Train the model on the input dataframe.
 generate_samples(n=100, conditioning_column=None, conditioning_value=None)
 ```
 
-Generate synthetic samples.
+Generate synthetic samples with option to conditional generation.
 
 **Parameters:**
 - **n** : int
@@ -156,7 +155,7 @@ Generate synthetic samples.
 
 ## Data Type Handling
 
-CTAB_XTRA_DP automatically processes different data types:
+`CTAB_XTRA_DP` automatically processes different data types: **This is not yet implemented**
 
 - **Categorical data**: One-hot encoded
 - **Mixed data**: Modeled using a mixture of discrete modes and continuous distributions
@@ -189,8 +188,7 @@ synthesizer = CTAB_XTRA_DP(
     categorical_columns=['workclass', 'education', 'marital-status', 'occupation', 
                          'relationship', 'race', 'gender', 'native-country', 'income'],
     mixed_columns={'capital-loss': [0], 'capital-gain': [0]},
-    integer_columns=['age', 'fnlwgt', 'capital-gain', 'capital-loss', 'hours-per-week'],
-    problem_type=("Classification", 'income')
+    integer_columns=['age', 'fnlwgt', 'hours-per-week']
 )
 
 # Train model
@@ -220,6 +218,34 @@ managers_samples = synthesizer.generate_samples(
     conditioning_value='Exec-managerial'
 )
 ```
+### With auxiliary classifier
+```python
+import pandas as pd
+from ctab_xtra_dp import CTAB_XTRA_DP
+
+# Load data
+df = pd.read_csv("adult.csv")
+
+# Initialize model
+synthesizer = CTAB_XTRA_DP(
+    df=df,
+    categorical_columns=['workclass', 'education', 'marital-status', 'occupation', 
+                         'relationship', 'race', 'gender', 'native-country', 'income'],
+    mixed_columns={'capital-loss': [0], 'capital-gain': [0]},
+    integer_columns=['age', 'fnlwgt', 'hours-per-week'],
+    problem_type=("Classification", 'income')
+)
+
+# Train model
+synthesizer.fit(epochs=150)
+
+# Generate synthetic data
+synthetic_data = synthesizer.generate_samples(n=1000)
+
+# Save synthetic data
+synthetic_data.to_csv("synthetic_adult.csv", index=False)
+```
+
 
 ### With Differential Privacy
 
@@ -227,11 +253,11 @@ managers_samples = synthesizer.generate_samples(
 # Initialize with stronger privacy guarantees
 private_synthesizer = CTAB_XTRA_DP(
     df=df,
-    categorical_columns=['workclass', 'education', 'marital-status'],
+    categorical_columns=['workclass', 'education', 'marital-status', 'occupation', 
+                         'relationship', 'race', 'gender', 'native-country', 'income'],
     integer_columns=['age', 'hours-per-week'],
     dp_constraints={
         "epsilon_budget": 1.0,  # Stricter privacy budget
-        "delta": 1e-5,
         "clip_coeff": 1.0
     }
 )
@@ -239,7 +265,28 @@ private_synthesizer = CTAB_XTRA_DP(
 private_synthesizer.fit(epochs=100)
 private_samples = private_synthesizer.generate_samples(n=1000)
 ```
+Not specifying delta allows the model to compute a resonable delta value.
 
+### With MNAR value
+A handfull of the 'capital-loss' and 'capital-gain' has missing financial data. In this case removing null values would loose valueable information. At the same time, interperating it as 0 will not distinguios does who do not have much financial activity from people who have null in the system some access reason. 
+```python
+# Initialize with stronger privacy guarantees
+private_synthesizer = CTAB_XTRA_DP(
+    df=df,
+    categorical_columns=['workclass', 'education', 'marital-status', 'occupation', 
+                         'relationship', 'race', 'gender', 'native-country', 'income'],
+    integer_columns=['age', 'hours-per-week'],
+    mixed_columns={'capital-loss': [0,np.nan], 'capital-gain': [0,np.nan]},
+    dp_constraints={
+        "epsilon_budget": 1.0,  # Stricter privacy budget
+        "clip_coeff": 1.0
+    }
+)
+
+private_synthesizer.fit(epochs=100)
+private_samples = private_synthesizer.generate_samples(n=1000)
+```
+Not specifying delta allows the model to compute a resonable delta value.
 ## Evaluation
 
 It's recommended to evaluate the quality of the synthetic data using metrics like:
@@ -248,10 +295,11 @@ It's recommended to evaluate the quality of the synthetic data using metrics lik
 - Machine learning utility (train on synthetic, test on real)
 - Privacy metrics (membership inference attack resistance)
 
-The package provides built-in evaluation methods in the `ctab_xtra_dp.eval` module.
+The package provides built-in evaluation methods **(but not implemented yet)**
+
 
 ## Citation
-
+**The citation is not yet avaliable**
 If you use this package in your research, please cite:
 
 ```bibtex
@@ -262,6 +310,7 @@ If you use this package in your research, please cite:
   year={2025}
 }
 ```
+
 
 ## License
 
