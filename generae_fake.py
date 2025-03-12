@@ -12,7 +12,6 @@ import glob
 from model.ctabgan import CTABGAN
 
 synthesizer =  CTABGAN(df_filtered,
-                 test_ratio = 0.20,
                  categorical_columns = [], 
                  log_columns = [],
                  mixed_columns= {},

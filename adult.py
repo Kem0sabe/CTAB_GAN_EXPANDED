@@ -9,7 +9,6 @@ df = df.head(1000)
 df.loc[:9, 'capital-gain'] = np.nan
 
 synthesizer =  CTABGAN(df,
-                 test_ratio = 0.20,
                  categorical_columns = ["workclass"], 
                  log_columns = {}, # Fuck this log, task for tommorrow
                  mixed_columns= {"capital-gain": [0,np.nan]},

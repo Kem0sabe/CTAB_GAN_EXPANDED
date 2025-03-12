@@ -19,12 +19,10 @@ class CTAB_XTRA_DP():
 
     def __init__(self,
                  df,
-                 test_ratio = 0.20,
                  categorical_columns = [], 
                  log_columns = [],
                  mixed_columns= {},
                  gaussian_columns = [],
-                 non_categorical_columns = [],
                  integer_columns = [],
                  problem_type = ("Classification",'workclass'),
                  dp_constraints = {
@@ -39,7 +37,6 @@ class CTAB_XTRA_DP():
               
         self.synthesizer = CTABGANSynthesizer()
         self.raw_df = df
-        self.test_ratio = test_ratio
         self.categorical_columns = categorical_columns
         self.log_columns = log_columns
         self.mixed_columns = mixed_columns

@@ -6,7 +6,6 @@ df = pd.read_csv("Real_Datasets/car.csv")
 df = df.drop(columns=['Year','Model'])
 
 synthesizer =  CTABGAN(df,
-                 test_ratio = 0.20,
                  categorical_columns = ["Brand","Model","Fuel_Type","Transmission"], 
                  log_columns = ["Mileage"],
                  mixed_columns= {},
