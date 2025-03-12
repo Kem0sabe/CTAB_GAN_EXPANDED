@@ -25,7 +25,7 @@ class CTAB_XTRA_DP():
                  gaussian_columns = [],
                  integer_columns = [],
                  problem_type = None,
-                 dp_constraints = None
+                 dp_constraints = {}
                  ):
 
         self.__name__ = 'CTAB_XTRA_DP'
