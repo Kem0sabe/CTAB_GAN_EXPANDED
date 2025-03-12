@@ -24,13 +24,8 @@ class CTAB_XTRA_DP():
                  mixed_columns= {},
                  gaussian_columns = [],
                  integer_columns = [],
-                 problem_type = ("Classification",'workclass'),
-                 dp_constraints = {
-                    "epsilon_budget": 10,
-                    "delta": None,
-                    "sigma": None,
-                    "clip_coeff": 1
-                 }
+                 problem_type = None,
+                 dp_constraints = None
                  ):
 
         self.__name__ = 'CTAB_XTRA_DP'
