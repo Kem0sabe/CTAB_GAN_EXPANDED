@@ -11,6 +11,8 @@ A privacy-preserving synthetic tabular data generator based on GANs.
 ```bash
 pip install --upgrade ctab-xtra-dp
 ```
+## Disclaimer
+This library is under development at the moment andl looks like a mess. Some credits might me missing, but these will be added shortly.
 
 ## Overview
 
