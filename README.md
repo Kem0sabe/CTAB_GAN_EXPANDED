@@ -9,7 +9,7 @@ A privacy-preserving synthetic tabular data generator based on GANs.
 ## Installation
 
 ```bash
-pip install ctab-xtra-dp
+pip install --upgrade ctab-xtra-dp
 ```
 
 ## Overview
