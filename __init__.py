@@ -6,8 +6,6 @@ from .model.eval.evaluation import stat_sim
 
 from .model.eval.evaluation import privacy_metrics
 
-from .model.eval.evaluation import privacy_metrics
-
 from .datasets.dataset_loader import load_demo , display_demo
 
 
