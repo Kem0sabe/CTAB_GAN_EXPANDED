@@ -25,6 +25,7 @@ pip install --upgrade ctab-xtra-dp
 - Conditional generation based on specific column values
 
 ## Quick Start
+A more detaile example is found in [examples/car.ipynb](examples/car.ipynb)
 
 ```python
 from ctab_xtra_dp import CTAB_XTRA_DP , load_demo
