@@ -27,11 +27,11 @@ pip install ctab-xtra-dp
 ## Quick Start
 
 ```python
-from ctab_xtra_dp import CTAB_XTRA_DP
+from ctab_xtra_dp import CTAB_XTRA_DP , load_demo
 import pandas as pd
 
 # Load your data
-df = pd.read_csv("your_data.csv")
+df = load_demo()
 
 # Initialize the model
 synthesizer = CTAB_XTRA_DP(
@@ -178,10 +178,10 @@ The model implements differential privacy using:
 
 ```python
 import pandas as pd
-from ctab_xtra_dp import CTAB_XTRA_DP
+from ctab_xtra_dp import CTAB_XTRA_DP, load_demo
 
 # Load data
-df = pd.read_csv("adult.csv")
+df = load_demo()
 
 # Initialize model
 synthesizer = CTAB_XTRA_DP(
@@ -222,10 +222,10 @@ managers_samples = synthesizer.generate_samples(
 ### With auxiliary classifier
 ```python
 import pandas as pd
-from ctab_xtra_dp import CTAB_XTRA_DP
+from ctab_xtra_dp import CTAB_XTRA_DP, load_demo
 
 # Load data
-df = pd.read_csv("adult.csv")
+df = load_demo()
 
 # Initialize model
 synthesizer = CTAB_XTRA_DP(
@@ -297,14 +297,14 @@ CTAB_XTRA_DP includes a comprehensive evaluation framework to assess both the ut
 ```python
 from ctab_xtra_dp.evaluation import get_utility_metrics, stat_sim
 
-# Load real and synthetic data
-real_data = pd.read_csv("real_data.csv")
+# Load synthetic data
+
 synthetic_data = synthesizer.generate_samples(n=1000)
 
 # Evaluate supervised learning performance difference
 # Lower difference values indicate better utility preservation
 utility_diff = get_utility_metrics(
-    data_real=real_data,
+    data_real=df,
     data_synthetic=synthetic_data,
     scaler="MinMax",  # or "Standard"
     type={"Classification": ["lr", "dt", "rf", "mlp"]},  # for classification tasks
@@ -329,7 +329,7 @@ from ctab_xtra_dp.evaluation import privacy_metrics
 
 # Assess privacy protection
 privacy_results = privacy_metrics(
-    real=real_data, 
+    real=df, 
     fake=synthetic_data, 
     data_percent=15  # Percentage of data to sample for efficiency
 )
@@ -356,11 +356,11 @@ privacy_results = privacy_metrics(
 
 ```python
 import pandas as pd
-from ctab_xtra_dp import CTAB_XTRA_DP
+from ctab_xtra_dp import CTAB_XTRA_DP, load_demo
 from ctab_xtra_dp.evaluation import get_utility_metrics, stat_sim, privacy_metrics
 
 # Load data
-real_data = pd.read_csv("adult.csv")
+real_data = load_demo()
 
 # Initialize and train model
 synthesizer = CTAB_XTRA_DP(
