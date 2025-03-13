@@ -31,28 +31,27 @@ from ctab_xtra_dp import CTAB_XTRA_DP , load_demo
 import pandas as pd
 
 # Load your data
-df = load_demo()
+df = load_demo("car).drop(columns=['Year','Model'])
 
 # Initialize the model
 synthesizer = CTAB_XTRA_DP(
     df=df,
-    categorical_columns=['workclass', 'education', 'marital-status', 'occupation', 
-                         'relationship', 'race', 'gender', 'native-country'],
-    mixed_columns={'capital-loss': [0],'capital-gain': [0]},
-    integer_columns=['age', 'hours-per-week']
+    categorical_columns=["Brand","Fuel_Type","Transmission"],
 )
 
 # Train the model
-synthesizer.fit(epochs=100)
+synthesizer.fit(epochs=50)
 
 # Generate synthetic data
-synthetic_data = synthesizer.generate_samples(n=1000)
+synthetic_data = synthesizer.generate_samples(n=df.shape[0])
+
+
 
 # Generate samples with specific conditions
-synthetic_data_bachelors = synthesizer.generate_samples(
+synthetic_data_electric = synthesizer.generate_samples(
     n=500, 
-    conditioning_column='education', 
-    conditioning_value='Bachelors'
+    conditioning_column='Fuel_Type', 
+    conditioning_value='Electric'
 )
 ```
 
