@@ -31,7 +31,7 @@ from ctab_xtra_dp import CTAB_XTRA_DP , load_demo
 import pandas as pd
 
 # Load your data
-df = load_demo("car).drop(columns=['Year','Model'])
+df = load_demo("car").drop(columns=['Year','Model'])
 
 # Initialize the model
 synthesizer = CTAB_XTRA_DP(
