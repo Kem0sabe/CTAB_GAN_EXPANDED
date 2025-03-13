@@ -126,7 +126,7 @@ def get_utility_metrics(data_real,fake_paths,scaler="MinMax",type={"Classificati
 
     return diff_results
 
-def stat_sim(real,fake,cat_cols=None):
+def stat_sim(real,fake,cat_cols=[]):
     
     Stat_dict={}
     
@@ -180,44 +180,125 @@ def stat_sim(real,fake,cat_cols=None):
 
     return [np.mean(num_stat),np.mean(cat_stat),corr_dist]
 
-def privacy_metrics(real,fake,data_percent=15):
+def privacy_metrics(real, fake, data_percent=15):
+    """
+    Calculate privacy metrics between real and fake datasets.
     
-    #real = pd.read_csv(real_path).drop_duplicates(keep=False)
-    #fake = pd.read_csv(fake_path).drop_duplicates(keep=False)
-
+    Parameters:
+    real (DataFrame): Real dataset
+    fake (DataFrame): Synthetic dataset
+    data_percent (int): Percentage of data to sample for analysis
+    
+    Returns:
+    dict: Dictionary containing detailed privacy metrics
+    """
+    import numpy as np
+    from sklearn.preprocessing import StandardScaler
+    from sklearn import metrics
+    import pandas as pd
+    
+    # Create a metrics dictionary to store all results
+    privacy_dict = {}
+    
+    print("==== Privacy Metrics Analysis ====")
+    print(f"Using {data_percent}% of data for analysis")
+    
+    # Sample the data
     real_refined = real.sample(n=int(len(real)*(.01*data_percent)), random_state=42).to_numpy()
     fake_refined = fake.sample(n=int(len(fake)*(.01*data_percent)), random_state=42).to_numpy()
-
+    
+    print(f"Real data sample size: {len(real_refined)}")
+    print(f"Fake data sample size: {len(fake_refined)}")
+    
+    # Scale the data
     scalerR = StandardScaler()
-    scalerR.fit(real_refined)
     scalerF = StandardScaler()
+    scalerR.fit(real_refined)
     scalerF.fit(fake_refined)
     df_real_scaled = scalerR.transform(real_refined)
     df_fake_scaled = scalerF.transform(fake_refined)
     
+    # Calculate pairwise distances
+    print("\nCalculating pairwise distances...")
     dist_rf = metrics.pairwise_distances(df_real_scaled, Y=df_fake_scaled, metric='minkowski', n_jobs=-1)
     dist_rr = metrics.pairwise_distances(df_real_scaled, Y=None, metric='minkowski', n_jobs=-1)
     rd_dist_rr = dist_rr[~np.eye(dist_rr.shape[0],dtype=bool)].reshape(dist_rr.shape[0],-1)
     dist_ff = metrics.pairwise_distances(df_fake_scaled, Y=None, metric='minkowski', n_jobs=-1)
     rd_dist_ff = dist_ff[~np.eye(dist_ff.shape[0],dtype=bool)].reshape(dist_ff.shape[0],-1) 
+    
+    # Find smallest two distances for each metric
     smallest_two_indexes_rf = [dist_rf[i].argsort()[:2] for i in range(len(dist_rf))]
     smallest_two_rf = [dist_rf[i][smallest_two_indexes_rf[i]] for i in range(len(dist_rf))]       
     smallest_two_indexes_rr = [rd_dist_rr[i].argsort()[:2] for i in range(len(rd_dist_rr))]
     smallest_two_rr = [rd_dist_rr[i][smallest_two_indexes_rr[i]] for i in range(len(rd_dist_rr))]
     smallest_two_indexes_ff = [rd_dist_ff[i].argsort()[:2] for i in range(len(rd_dist_ff))]
     smallest_two_ff = [rd_dist_ff[i][smallest_two_indexes_ff[i]] for i in range(len(rd_dist_ff))]
+    
+    # Calculate nearest neighbor ratios
     nn_ratio_rr = np.array([i[0]/i[1] for i in smallest_two_rr])
     nn_ratio_ff = np.array([i[0]/i[1] for i in smallest_two_ff])
     nn_ratio_rf = np.array([i[0]/i[1] for i in smallest_two_rf])
-    nn_fifth_perc_rr = np.percentile(nn_ratio_rr,5)
-    nn_fifth_perc_ff = np.percentile(nn_ratio_ff,5)
-    nn_fifth_perc_rf = np.percentile(nn_ratio_rf,5)
-
-    min_dist_rf = np.array([i[0] for i in smallest_two_rf])
-    fifth_perc_rf = np.percentile(min_dist_rf,5)
-    min_dist_rr = np.array([i[0] for i in smallest_two_rr])
-    fifth_perc_rr = np.percentile(min_dist_rr,5)
-    min_dist_ff = np.array([i[0] for i in smallest_two_ff])
-    fifth_perc_ff = np.percentile(min_dist_ff,5)
     
-    return np.array([fifth_perc_rf,fifth_perc_rr,fifth_perc_ff,nn_fifth_perc_rf,nn_fifth_perc_rr,nn_fifth_perc_ff]).reshape(1,6)    
+    # Calculate 5th percentiles of ratios
+    nn_fifth_perc_rr = np.percentile(nn_ratio_rr, 5)
+    nn_fifth_perc_ff = np.percentile(nn_ratio_ff, 5)
+    nn_fifth_perc_rf = np.percentile(nn_ratio_rf, 5)
+    
+    # Store NN ratio metrics
+    privacy_dict['nn_ratio_rr_5th'] = nn_fifth_perc_rr
+    privacy_dict['nn_ratio_ff_5th'] = nn_fifth_perc_ff
+    privacy_dict['nn_ratio_rf_5th'] = nn_fifth_perc_rf
+    
+    print("\n== Nearest Neighbor Ratio Metrics (5th percentile) ==")
+    print(f"Real-to-Real NN Ratio (5th): {nn_fifth_perc_rr:.4f}")
+    print(f"Fake-to-Fake NN Ratio (5th): {nn_fifth_perc_ff:.4f}")
+    print(f"Real-to-Fake NN Ratio (5th): {nn_fifth_perc_rf:.4f}")
+    
+    # Calculate minimum distances
+    min_dist_rf = np.array([i[0] for i in smallest_two_rf])
+    min_dist_rr = np.array([i[0] for i in smallest_two_rr])
+    min_dist_ff = np.array([i[0] for i in smallest_two_ff])
+    
+    # Calculate 5th percentiles of minimum distances
+    fifth_perc_rf = np.percentile(min_dist_rf, 5)
+    fifth_perc_rr = np.percentile(min_dist_rr, 5)
+    fifth_perc_ff = np.percentile(min_dist_ff, 5)
+    
+    # Store minimum distance metrics
+    privacy_dict['min_dist_rf_5th'] = fifth_perc_rf
+    privacy_dict['min_dist_rr_5th'] = fifth_perc_rr
+    privacy_dict['min_dist_ff_5th'] = fifth_perc_ff
+    
+    print("\n== Minimum Distance Metrics (5th percentile) ==")
+    print(f"Real-to-Fake Min Distance (5th): {fifth_perc_rf:.4f}")
+    print(f"Real-to-Real Min Distance (5th): {fifth_perc_rr:.4f}")
+    print(f"Fake-to-Fake Min Distance (5th): {fifth_perc_ff:.4f}")
+    
+    # Calculate privacy risk score
+    # Higher score indicates lower privacy risk
+    privacy_risk = (fifth_perc_rf / (fifth_perc_rr + fifth_perc_ff) * 2)
+    privacy_dict['privacy_risk_score'] = privacy_risk
+    
+    print(f"\nPrivacy Risk Score: {privacy_risk:.4f}")
+    print("(Higher score indicates better privacy protection)")
+    
+    # Create the final metrics array as before
+    metrics_array = np.array([
+        fifth_perc_rf, fifth_perc_rr, fifth_perc_ff,
+        nn_fifth_perc_rf, nn_fifth_perc_rr, nn_fifth_perc_ff
+    ]).reshape(1, 6)
+    
+    privacy_dict['metrics_array'] = metrics_array
+    
+    print("\n==== Summary Interpretation ====")
+    if fifth_perc_rf > (fifth_perc_rr + fifth_perc_ff)/2:
+        print("✓ Good distance between real and synthetic records")
+    else:
+        print("⚠ Synthetic records may be too similar to real data")
+        
+    if nn_fifth_perc_rf > (nn_fifth_perc_rr + nn_fifth_perc_ff)/2:
+        print("✓ Good neighbor distance ratios")
+    else:
+        print("⚠ Neighbor distance ratios indicate possible privacy concerns")
+    
+    return privacy_dict
