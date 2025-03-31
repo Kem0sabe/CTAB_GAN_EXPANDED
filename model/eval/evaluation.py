@@ -11,6 +11,7 @@ from dython.nominal import associations
 from scipy.stats import wasserstein_distance
 from scipy.spatial import distance
 import warnings
+from .gower_mix import gower_distance
 
 warnings.filterwarnings("ignore")
 
@@ -180,7 +181,7 @@ def stat_sim(real,fake,cat_cols=[]):
 
     return [np.mean(num_stat),np.mean(cat_stat),corr_dist]
 
-def privacy_metrics(real, fake, data_percent=15):
+def privacy_metrics(real, fake, metric = 'gower', data_percent=15):
     """
     Calculate privacy metrics between real and fake datasets.
     
@@ -210,21 +211,15 @@ def privacy_metrics(real, fake, data_percent=15):
     print(f"Real data sample size: {len(real_refined)}")
     print(f"Fake data sample size: {len(fake_refined)}")
     
-    # Scale the data
-    scalerR = StandardScaler()
-    scalerF = StandardScaler()
-    scalerR.fit(real_refined)
-    scalerF.fit(fake_refined)
-    df_real_scaled = scalerR.transform(real_refined)
-    df_fake_scaled = scalerF.transform(fake_refined)
-    
-    # Calculate pairwise distances
+
     print("\nCalculating pairwise distances...")
-    dist_rf = metrics.pairwise_distances(df_real_scaled, Y=df_fake_scaled, metric='minkowski', n_jobs=-1)
-    dist_rr = metrics.pairwise_distances(df_real_scaled, Y=None, metric='minkowski', n_jobs=-1)
+    
+    dist_rf, dist_rr, dist_ff = _calculate_pariwise_distances(real_refined, fake_refined, metric=metric)
+    # Remove the distance between the same records (matrix diagonal)
     rd_dist_rr = dist_rr[~np.eye(dist_rr.shape[0],dtype=bool)].reshape(dist_rr.shape[0],-1)
-    dist_ff = metrics.pairwise_distances(df_fake_scaled, Y=None, metric='minkowski', n_jobs=-1)
     rd_dist_ff = dist_ff[~np.eye(dist_ff.shape[0],dtype=bool)].reshape(dist_ff.shape[0],-1) 
+
+    
     
     # Find smallest two distances for each metric
     smallest_two_indexes_rf = [dist_rf[i].argsort()[:2] for i in range(len(dist_rf))]
@@ -302,3 +297,35 @@ def privacy_metrics(real, fake, data_percent=15):
         print("⚠ Neighbor distance ratios indicate possible privacy concerns")
     
     return privacy_dict
+
+
+
+
+def _calculate_pariwise_distances(real, fake, metric='gower'):
+    dist_rf = 0 # Pairwise distance between real and fake
+    dist_rr = 0 # Pairwise distance in real data
+    dist_ff = 0 # Pairwise distance between fake and fake
+    if metric == 'gower':
+      dist_rf = gower_distance(real,fake)
+      dist_rr = gower_distance(real,real)
+      dist_ff = gower_distance(fake,fake)
+      return dist_rf, dist_rr, dist_ff
+
+
+    if metric == 'euclidean':
+      scalerR = StandardScaler()
+      scalerF = StandardScaler()
+      scalerR.fit(real)
+      scalerF.fit(fake)
+      df_real_scaled = scalerR.transform(real)
+      df_fake_scaled = scalerF.transform(fake)
+
+      dist_rf = metrics.pairwise_distances(df_real_scaled, Y=df_fake_scaled, metric='minkowski', n_jobs=-1)
+      dist_rr = metrics.pairwise_distances(df_real_scaled, Y=None, metric='minkowski', n_jobs=-1)
+      dist_ff = metrics.pairwise_distances(df_fake_scaled, Y=None, metric='minkowski', n_jobs=-1)
+
+      return dist_rf, dist_rr, dist_ff
+    
+
+    raise ValueError(f"Unknown metric: {metric}. Supported metrics are 'gower' and 'euclidean'.")
+

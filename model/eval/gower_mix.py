@@ -3,16 +3,15 @@ import numpy as np
 
 from scipy.sparse import issparse
 
-import numba as nb
 
 
 
 
 
-def gower_distance(data_x, data_y=None, weight=[1,2,3], mix_features=None):
+def gower_distance(data_x, data_y=None, weight=None, mix_features=None):
     X = data_x
     Y = data_y if data_y is not None else data_x
-    weight = np.array(weight)
+
     
 
     if not isinstance(X, np.ndarray): X = np.asarray(X)
@@ -24,7 +23,7 @@ def gower_distance(data_x, data_y=None, weight=[1,2,3], mix_features=None):
     
     # Set default weights if not provided
     if weight is None:
-        weight = np.ones(n_cols_X)
+        weight = np.ones(n_cols)
     else:
         weight = np.asarray(weight)
 
