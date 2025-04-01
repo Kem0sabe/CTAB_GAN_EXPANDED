@@ -12,6 +12,7 @@ from scipy.stats import wasserstein_distance
 from scipy.spatial import distance
 import warnings
 from .gower_mix import gower_distance
+from collections import defaultdict
 
 warnings.filterwarnings("ignore")
 
@@ -127,7 +128,7 @@ def get_utility_metrics(data_real,fake_paths,scaler="MinMax",type={"Classificati
 
     return diff_results
 
-def stat_sim(real,fake,cat_cols=[]):
+def stat_sim(real,fake,categorical=[]):
     
     Stat_dict={}
     
@@ -148,7 +149,7 @@ def stat_sim(real,fake,cat_cols=[]):
     
     for column in real.columns:
         
-        if column in cat_cols:
+        if column in categorical:
 
             real_pdf=(really[column].value_counts()/really[column].value_counts().sum())
             fake_pdf=(fakey[column].value_counts()/fakey[column].value_counts().sum())
@@ -180,6 +181,165 @@ def stat_sim(real,fake,cat_cols=[]):
             num_stat.append(Stat_dict[column])
 
     return [np.mean(num_stat),np.mean(cat_stat),corr_dist]
+
+
+def stat_sim2(real,fake,categorical=[],mixed={},mnar=True):
+    
+
+    nan_placeholder = "__MISSING__"
+    continuous_placeholder='__CONTINUOUS__'
+
+
+
+    #real = pd.read_csv(real_path)
+    #fake = pd.read_csv(fake_path)
+
+    really = real.copy()
+    fakey = fake.copy()
+
+    categorical = set(categorical)
+    mixed = defaultdict(list, mixed)
+
+    columns_with_nan = []
+    if mnar: # If Missing not at random, we replace NaN values with a placeholder,effectively treating them as a separate category
+      # Replace NaN values with a placeholder
+      nan_counts_real = really.isna().sum()
+      nan_counts_fake = fakey.isna().sum()
+      columns_with_nan_real = nan_counts_real[nan_counts_real > 0].index.tolist()
+      columns_with_nan_fake = nan_counts_fake[nan_counts_fake > 0].index.tolist()
+
+      columns_with_nan = list(set(columns_with_nan_real + columns_with_nan_fake))
+
+      for column in columns_with_nan:
+        if continuous_placeholder not in mixed[column]: mixed[column].append(nan_placeholder)
+
+      really = really.fillna(nan_placeholder)
+      fakey = fakey.fillna(nan_placeholder)
+
+    real_processed, additional_categorical_cols = _process_mixed_columns(really, mixed, continuous_placeholder=continuous_placeholder)
+    fake_processed, _ = _process_mixed_columns(fakey, mixed, continuous_placeholder=continuous_placeholder)
+
+    categorical.update(additional_categorical_cols)
+
+
+        
+
+    
+    
+  
+    column_stats = []
+    
+    default_columns_weight = 1
+    weights = []
+    for column in real_processed.columns:
+        
+        if column in categorical:
+            
+            real_pdf=(real_processed[column].value_counts()/real_processed[column].value_counts().sum())
+            fake_pdf=(fake_processed[column].value_counts()/fake_processed[column].value_counts().sum())
+            categories = (fake_processed[column].value_counts()/fake_processed[column].value_counts().sum()).keys().tolist()
+            sorted_categories = sorted(categories)
+            
+            real_pdf_values = [] 
+            fake_pdf_values = []
+
+            for i in sorted_categories:
+                #if i not in real_pdd: raise ValueError(f"Category {i} present in fake but not in real data")
+                if i not in real_pdf: real_pdf[i] = 0 #TODO: might not be like this
+                if i not in fake_pdf: fake_pdf[i] = 0
+                real_pdf_values.append(real_pdf[i])
+                fake_pdf_values.append(fake_pdf[i])
+            
+            if len(real_pdf)!=len(fake_pdf):
+                zero_cats = set(really[column].value_counts().keys())-set(fakey[column].value_counts().keys())
+                
+            js_distance = (distance.jensenshannon(real_pdf_values,fake_pdf_values, 2.0))
+ 
+            statistics = [column, "JSD",js_distance, default_columns_weight]
+    
+            weights.append(default_columns_weight)
+    
+        else:
+            scaler = MinMaxScaler()
+            scaler.fit(real_processed[column].values.reshape(-1,1))
+            l1 = scaler.transform(real_processed[column].values.reshape(-1,1)).flatten()
+            l2 = scaler.transform(fake_processed[column].values.reshape(-1,1)).flatten()
+            weight = default_columns_weight
+            if mnar: # If missing at random the np.nan are just placeholder so we remove them
+              weight = 1 - np.isnan(l1).sum()/len(l1)
+              l1 = l1[~np.isnan(l1)]
+              l2 = l2[~np.isnan(l2)]
+            w_distance = (wasserstein_distance(l1,l2))
+            statistics = [column, "WD", w_distance, weight]
+            weights.append(weight)
+        column_stats.append(statistics)
+    column_stats = pd.DataFrame(column_stats, columns=["Column", "Metric", "Distance", "Weight"])
+
+    summary = column_stats.groupby('Metric').agg({
+        'Distance': [
+            ('Weighted_Avg', lambda x: np.average(x, weights=column_stats.loc[x.index, 'Weight'])),
+            ('Mean', 'mean'),
+            ('Std', 'std')
+        ]
+    })
+    summary.columns = summary.columns.get_level_values(1)
+    summary = summary.reset_index()
+
+
+    """
+    real_corr = associations(real_processed, compute_only=True)["corr"]
+    fake_corr = associations(fake_processed, compute_only=True)["corr"]
+    weighted_correlation = (real_corr - fake_corr) * weights
+
+    corr_dist = np.linalg.norm(weighted_correlation)
+    """
+    
+    return summary, column_stats
+
+
+def _process_mixed_columns(df, mixed, continuous_placeholder='__CONTINUOUS__'):
+    """
+    Process mixed columns by extracting categorical values
+    
+    Args:
+        df (pd.DataFrame): Input DataFrame
+        mixed (dict): Dictionary of mixed columns with their categories
+        continuous_placeholder (str): Placeholder to indicate continuous value in categorical part of mixed columns
+    
+    Returns:
+        tuple: (processed_df, additional_categorical_cols)
+    """
+    # Create a copy of the DataFrame
+    df_copy = df.copy()
+    additional_categorical_cols = []
+    
+    for col, categories in mixed.items():
+        # Create a new categorical column
+        new_cat_col_name = f"{col}_categorical"
+        new_cont_col_name = f"{col}_continuous"
+        
+        # Create a series for categorical values
+        categorical_series = df_copy[col].apply(
+            lambda x: x if x in categories else continuous_placeholder
+        )
+        
+        # Add the new categorical column
+        df_copy[new_cat_col_name] = categorical_series
+        additional_categorical_cols.append(new_cat_col_name)
+
+        continuous_series = df_copy[col].apply(
+            lambda x: x if x not in categories else np.nan
+        )
+        df_copy[new_cont_col_name] = continuous_series
+
+        # Drop the original column
+        df_copy.drop(columns=[col], inplace=True)
+    
+    return df_copy, additional_categorical_cols
+
+
+
+
 
 def privacy_metrics(real, fake, metric = 'gower', data_percent=15):
     """
