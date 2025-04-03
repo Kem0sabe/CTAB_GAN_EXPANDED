@@ -444,7 +444,7 @@ class CTABGANSynthesizer:
         self.batch_size = batch_size
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    def fit(self, prepared_data, data_prep, dp_constraints, categorical, mixed, general,problem_type = None, epochs=100,verbose = True):
+    def fit(self, prepared_data, data_prep, dp_constraints, categorical, mixed, general,truncated_gaussian_list,problem_type = None, epochs=100,verbose = True):
 
         if problem_type and len(problem_type) != 2: 
             raise ValueError('Problem type should be a tupele with (problem, target)')
@@ -463,7 +463,7 @@ class CTABGANSynthesizer:
             target_index = prepared_data.columns.get_loc(target)
 
         
-        self.transformer = DataTransformer(prepared_data, data_prep, categorical, mixed, general)
+        self.transformer = DataTransformer(prepared_data, data_prep, categorical, mixed, general,truncated_gaussian_list)
        
         train_data = self.transformer.transform(prepared_data)
         data_sampler = Sampler(train_data, self.transformer.get_output_info())

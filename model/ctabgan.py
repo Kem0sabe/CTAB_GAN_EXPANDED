@@ -22,8 +22,9 @@ class CTAB_XTRA_DP():
                  categorical_columns = [], 
                  log_columns = [],
                  mixed_columns= {},
-                 gaussian_columns = [],
+                 general_columns = [],
                  integer_columns = [],
+                 truncated_gaussian_columns = [],
                  problem_type = None,
                  dp_constraints = {}
                  ):
@@ -35,7 +36,8 @@ class CTAB_XTRA_DP():
         self.categorical_columns = categorical_columns
         self.log_columns = log_columns
         self.mixed_columns = mixed_columns
-        self.gaussian_columns = gaussian_columns
+        self.general_columns = general_columns
+        self.truncated_gaussian_columns = truncated_gaussian_columns
         self.integer_columns = integer_columns
 
         self.problem_type = problem_type
@@ -60,7 +62,7 @@ class CTAB_XTRA_DP():
         
 
         self.synthesizer = CTABGANSynthesizer(batch_size = batch_size)
-        self.synthesizer.fit(self.prepared_data , self.data_prep, self.dp_constraints, self.categorical_columns, self.mixed_columns, self.gaussian_columns, self.problem_type,epochs,verbose = verbose)
+        self.synthesizer.fit(self.prepared_data , self.data_prep, self.dp_constraints, self.categorical_columns, self.mixed_columns, self.general_columns, self.truncated_gaussian_columns,self.problem_type,epochs,verbose = verbose)
         return
         
 

@@ -9,33 +9,37 @@ from .column_transformers.gmm_transformer import GMM_transformer
 from .column_transformers.categorical_transformer import Categorical_transformer
 from .column_transformers.mixed_data_transformer import Mixed_data_transformer
 from .column_transformers.gaussian_transformer import Gaussian_transformer
+from .column_transformers.general_transformer import General_transformer
+from .column_transformers.gaussian_truncated_transformer import Gaussian_truncated_transformer
+
 
 class DataTransformer():
     
-    def __init__(self, prepared_data, data_prep: DataPrep, categorical_list, mixed_dict, gaussian_list, n_clusters=10, eps=0.005):
+    def __init__(self, prepared_data, data_prep: DataPrep, categorical_list, mixed_dict, general_list,truncated_gaussian_columns, n_clusters=10, eps=0.005):
         self.meta = None
         self.n_clusters = n_clusters
         self.eps = eps
         
         self.data_prep = data_prep
        
-        self.transformers = self.setup_transformers(prepared_data,categorical_list, mixed_dict, gaussian_list)
+        self.transformers = self.setup_transformers(prepared_data,categorical_list, mixed_dict, general_list,truncated_gaussian_columns)
         
 
     
 
     
-    def get_column_transform(self, data,column, categorical_list, mixed_dict, gaussian_list):
+    def get_column_transform(self, data,column, categorical_list, mixed_dict, general_list,truncated_gaussian_columns):
         if column in categorical_list: return Categorical_transformer(data[column])
         if column in mixed_dict: return Mixed_data_transformer(data[column],mixed_dict[column])
-        if column in gaussian_list: return Gaussian_transformer(data[column])
+        if column in general_list: return General_transformer(data[column])
+        if column in truncated_gaussian_columns: return Gaussian_truncated_transformer(data[column])
         return GMM_transformer(data[column])  # No type specified by user
 
 
-    def setup_transformers(self,data,categorical_list, mixed_dict, gaussian_list):
+    def setup_transformers(self,data,categorical_list, mixed_dict, general_list,truncated_gaussian_columns = []):
         transformers = []
         for column in data.columns:
-            column_type = self.get_column_transform(data,column, categorical_list, mixed_dict, gaussian_list)
+            column_type = self.get_column_transform(data,column, categorical_list, mixed_dict, general_list,truncated_gaussian_columns)
             transformers.append(column_type)
         return transformers
 
