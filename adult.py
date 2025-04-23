@@ -12,7 +12,7 @@ synthesizer =  CTABGAN(df,
                  categorical_columns = ["workclass"], 
                  log_columns = {}, # Fuck this log, task for tommorrow
                  mixed_columns= {"capital-gain": [0,np.nan]},
-                 gaussian_columns = ["age"],
+                 general_columns = ["age"],
                  non_categorical_columns = [],
                  integer_columns = ["age","capital-gain"]) 
 
