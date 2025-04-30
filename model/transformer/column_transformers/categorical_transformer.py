@@ -17,19 +17,28 @@ class Categorical_transformer(Column_transformer):
         self.components = None
         self.output_info = [(self.size, 'softmax', None)]
         self.output_dim = self.size
+        unique_values, counts = np.unique(data_col, return_counts=True)
+        sorted_values = unique_values[np.argsort(-counts)]
+        self.i2s = sorted_values
+
+
         
 
     def transform(self, data_col):
         data_col = np.asarray(data_col,int)
         self.ordering = None
+        value_to_index = {value: idx for idx, value in enumerate(self.i2s)}
+        idx = [value_to_index[val] for val in data_col]
+
         col_t = np.zeros([len(data_col), self.size])
-        col_t[np.arange(len(data_col)), data_col] = 1
+        col_t[np.arange(len(data_col)), idx] = 1
         return col_t
 
     def inverse_transform(self, data_col,st):
         # data_col = np.asarray(data_col,int)
         u = data_col[:, st:st + self.size]
         idx = np.argmax(u, axis=1)
+        labels = self.i2s[idx]
         new_st = st + self.size
         return idx, new_st, []
 
