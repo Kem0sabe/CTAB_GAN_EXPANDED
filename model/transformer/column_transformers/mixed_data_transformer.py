@@ -32,7 +32,7 @@ class Mixed_data_transformer(Column_transformer):
 
         if np.nan in self.modals: self.modals[self.modals.index(np.nan)] = self.nan_replacement
         data_col = np.where(np.isnan(data_col), self.nan_replacement, data_col)
-        #gm1.fit(data_col.reshape([-1, 1]))
+        gm1.fit(data_col.reshape([-1, 1]))
 
         self.filter_arr = ~np.isin(data_col, self.modals) # Find the indices of elements in data[:, id_] that are not in modal (aka that are not in the normal continuous data)
         data_continuous = self.get_continuous_data(data_col, self.filter_arr) # The observations where we have continuous data, excluding the modal/categorical data
@@ -44,6 +44,7 @@ class Mixed_data_transformer(Column_transformer):
 
         # self.filter_arr.append(filter_arr)
         self.model = gm2
+        self.model0 = gm1 #TODO: remove thsi is tamp
        
         old_comp = gm2.weights_ > self.eps # To prevent the model from overfitting? removes components that are less than eps
           
@@ -62,6 +63,42 @@ class Mixed_data_transformer(Column_transformer):
         filter_arr = self.filter_arr
         data_filter_col = self.get_continuous_data(data_col, self.filter_arr)
         
+        
+
+        #####################################
+
+        means_0 = self.model0.means_.reshape([-1])
+        stds_0 = np.sqrt(self.model0.covariances_).reshape([-1])
+
+        zero_std_list = []
+        means_needed = []
+        stds_needed = []
+
+        for mode in self.modals:
+            if mode!=-9999999:
+                dist = []
+                for idx,val in enumerate(list(means_0.flatten())):
+                    dist.append(abs(mode-val))
+                index_min = np.argmin(np.array(dist))
+                zero_std_list.append(index_min)
+            else: continue
+
+        for idx in zero_std_list:
+            means_needed.append(means_0[idx])
+            stds_needed.append(stds_0[idx])
+        
+        
+        mode_vals = []
+
+        for i,j,k in zip(self.modals,means_needed,stds_needed):
+            this_val  = np.abs(i - j) / (4*k)
+            mode_vals.append(this_val)
+        
+        if -9999999 in self.modals:
+            mode_vals.append(0)
+
+        #############################
+
         means = self.model.means_.reshape((1, self.n_clusters))
         stds = np.sqrt(self.model.covariances_).reshape((1, self.n_clusters))
         features = np.empty(shape=(len(data_filter_col),self.n_clusters))
@@ -91,7 +128,7 @@ class Mixed_data_transformer(Column_transformer):
         for idx, val in enumerate(data_col): #TODO: This should be as data_col instead, since now we are using the original data, this might fix the pr
             if val in self.modals:
                 category_ = list(map(self.modals.index, [val]))[0]
-                final[idx, 0] = 0 #mode_vals[category_]
+                final[idx, 0] = mode_vals[category_]
                 final[idx, (category_+1)] = 1
             
             else:

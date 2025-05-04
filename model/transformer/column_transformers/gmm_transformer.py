@@ -33,6 +33,7 @@ class GMM_transformer(Column_transformer):
         
 
     def transform(self, data_col):
+        np.random.seed(22) # TODO: remove used for debugging
         data_col = data_col.reshape([-1, 1])
         means = self.model.means_.reshape((1, self.n_clusters))
         stds = np.sqrt(self.model.covariances_).reshape((1, self.n_clusters))
