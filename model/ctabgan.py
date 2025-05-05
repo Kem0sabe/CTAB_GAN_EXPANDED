@@ -7,7 +7,7 @@ import time
 from .pipeline.data_type_assigner import Data_type_assigner
 from .pipeline.data_preparation import DataPrep
 from .pipeline.Column_assigner import Column_assigner, Transform_type
-from .synthesizer.ctabgan_synthesizer import CTABGANSynthesizer
+from .synthesizer.ctabgan_synthesizer2 import CTABGANSynthesizer
 
 
 import warnings
@@ -74,7 +74,7 @@ class CTAB_XTRA_DP():
             column_index = self.prepared_data.columns.get_loc(conditioning_column) if conditioning_column in self.prepared_data.columns else ValueError("Conditioning column", conditioning_column, "not found in the data columns")
             column_value_index = self.data_prep.get_label_encoded(column_index, conditioning_value)
 
-        sample_transformed = self.synthesizer.sample(n, column_index, column_value_index)
+        sample_transformed = self.synthesizer.sample(n)#self.synthesizer.sample(n, column_index, column_value_index)
         sample_transformed = pd.DataFrame(sample_transformed, columns=self.prepared_data.columns)
         
         sample = self.data_prep.preprocesses_inverse_transform(sample_transformed)

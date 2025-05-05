@@ -107,6 +107,17 @@ class DataTransformer():
     def get_components(self): #TODO: check if needed
         return [transformer.get_components() for transformer in self.transformers]
 
+    def get_output_info_flat(self):
+        output_info_list = []
+        for transformer in self.transformers:
+            output_info = transformer.get_output_info()
+            if len(output_info) == 1:
+                output_info_list.append(output_info[0])
+            else:
+                output_info_list.extend(output_info)
+        return output_info_list
+
+
    
             
 
