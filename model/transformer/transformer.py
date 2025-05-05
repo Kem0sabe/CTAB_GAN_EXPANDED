@@ -71,6 +71,7 @@ class DataTransformer():
             new_data, st, invalid_ids = transformer.inverse_transform(data, st)
             data_t[:,idx] = new_data
             all_invalid_ids += invalid_ids
+            print("transformer", idx    , "invalid ids", invalid_ids)
         all_invalid_ids = np.unique(all_invalid_ids)
         data_t = np.delete(data_t, list(all_invalid_ids), axis=0)
         return data_t, len(all_invalid_ids)
